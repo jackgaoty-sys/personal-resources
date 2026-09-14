@@ -1,0 +1,20 @@
+# macOS
+.DS_Store
+
+# Obsidian device-specific state
+**/.obsidian/workspace.json
+**/.obsidian/workspace-mobile.json
+
+# Local/editor files
+.idea/
+.vscode/
+*.swp
+*.tmp
+
+# Runtime state and secrets
+AutoNote/_system/review-state.json
+.env
+.env.*
+!.env.example
+*.pem
+*.key
