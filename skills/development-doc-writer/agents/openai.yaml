@@ -1,0 +1,4 @@
+interface:
+  display_name: "开发文档维护"
+  short_description: "基于代码、测试与部署证据创建并持续维护项目开发文档"
+  default_prompt: "Use $development-doc-writer to create or update this project's living development document and test log in Simplified Chinese from verified engineering evidence."
