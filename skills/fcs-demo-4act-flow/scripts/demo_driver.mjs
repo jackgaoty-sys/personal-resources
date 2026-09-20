@@ -9,7 +9,7 @@
 //
 // ⚠ 本脚本【不再执行演示】。演示的全部动作必须在 Codar **内置浏览器**里触发
 //   （in_app_browser_navigate / interact / evaluate / screenshot）—— 观众看的是 Codar 里的
-//   画面；这里起的独立窗口 Chromium 观众看不到，不算演示。见 references/delivery-mode.md §2.7。
+//   画面；这里起的独立窗口 Chromium 观众看不到，不算演示。见 references/browser-stage-contract.md。
 //   非 --dry 的调用会直接报错退出。
 //
 // 它现在的两个用途：
@@ -37,12 +37,12 @@ const DRY = has("--dry");
 // 明确拒绝旧旗标：宁可报错，也不要“以为跳过了暂停、其实没跳过”这类静默歧义。
 if (has("--no-pause")) {
   console.error("✗ --no-pause 已被移除：本驱动只支持实机演示，暂停点必须由真人推进。");
-  console.error("  演示前只想校验时间轴，请用 --dry。见 references/delivery-mode.md。");
+  console.error("  演示前只想校验时间轴，请用 --dry。见 references/browser-stage-contract.md。");
   process.exit(2);
 }
 
 // 本脚本【不再执行演示】。演示的全部动作必须在 Codar 内置浏览器里触发：
-// 这里起的是独立窗口的 Chromium，观众看不到它，不算演示（delivery-mode.md §2.7）。
+// 这里起的是独立窗口的 Chromium，观众看不到它，不算演示（见 browser-stage-contract.md）。
 if (!DRY) {
   console.error("✗ 本脚本不再执行演示。");
   console.error("  演示的全部动作必须在 Codar 内置浏览器里触发（in_app_browser_*）——");
@@ -112,7 +112,7 @@ function abortTakeover() {
   // 接管不可用 = 演不了。这是硬错误，不是可以“降级处理”的情况。
   say("✗ 无法接管 —— 本驱动没有无人值守模式。");
   say("  暂停点必须由真人在真实终端里按 Enter 推进。");
-  say("  演示前只想校验时间轴，请用 --dry。见 references/delivery-mode.md。");
+  say("  演示前只想校验时间轴，请用 --dry。见 references/browser-stage-contract.md。");
   return "abort";
 }
 

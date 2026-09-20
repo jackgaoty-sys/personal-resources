@@ -4,7 +4,7 @@
     "name": "飞控系统四幕演示",
     "baseUrl": "http://localhost:5173",
     "outDir": "./demo-artifacts",
-    "shotPolicy": "截图非必需：shot 步骤默认跳过，需要留档时才做（见 delivery-mode.md §2.9）",
+    "shotPolicy": "截图非必需：重要内容通过内部浏览器现场展示，需要留档时才执行 shot。",
     "note": "baseUrl 是 vite dev 的根路径（dev 下 base 为 /）。若 dev server 换了端口，改这里。"
   },
   "defaults": {
@@ -17,7 +17,7 @@
       "id": "act1",
       "title": "第 1 幕 · 进入卓工平台 Ai Lab",
       "pauseBefore": false,
-      "narration": "平台左侧导航 → AI Lab → 跳转网页版 Codar。控制在 15 秒内，只说一句：它进的是我们自己的平台，Agent 嵌在里面。对观众解说见 presenter-script.md §1。",
+      "narration": "平台左侧导航 → AI Lab → 跳转网页版 Codar。控制在 15 秒内，展示模型进入任务语境。",
       "steps": [
         { "action": "note", "text": "本幕发生在卓工平台侧，不属于 fcs-demo 的控制范围。" },
         { "action": "note", "text": "此处应截取平台入口画面，人工另存为 act1-entry.png（脚本无法访问平台页面）。" }
@@ -28,10 +28,10 @@
       "id": "act2",
       "title": "第 2 幕 · 需求分析（引导式）",
       "pauseBefore": true,
-      "narration": "学生（真人）自由说出需求；平台按 quiz-bank.md 的 A 组逐个提问，一次一个，按 rubric 判定后追问/纠偏。收在'只保留三条，你保留哪三条'。产出 requirements.spec.md。学生自由作答，不给台词（见 platform-guidance.md）。",
+      "narration": "学生自由说出需求；模型在三次以内补齐控制目标、安全边界和故障策略，随后生成并在内部浏览器展示 requirements.spec.md。",
       "steps": [
         { "action": "load", "aero": 1, "note": "先加载应用，让'平台界面可用'可被真实截图（原时间轴缺此步，页面会停在 about:blank）" },
-        { "action": "note", "text": "本幕以对话为主，不进浏览器。题目见 references/quiz-bank.md 的 A 组。" },
+        { "action": "note", "text": "对话完成后，在内部浏览器展示结构化需求规格；判定标准见 references/private-rubric.md。" },
         { "action": "eval", "expr": "document.querySelector('#preset') ? 'ui-ready' : 'ui-missing'", "save": "uiProbe" },
         { "action": "shot", "name": "act2-ui-ready", "note": "记录'平台界面可用'的状态，供需求讨论时指着说" },
         { "action": "note", "text": "把 A 组结论写进 demo-artifacts/requirements.spec.md（模板：assets/requirements.spec.template.md）。" }
@@ -42,7 +42,7 @@
       "id": "act3",
       "title": "第 3 幕 · 阶段性成果与改进",
       "pauseBefore": true,
-      "narration": "3.1 亮出无气动阶段版 → 3.2 学生（真人）指出 bug → 3.3 平台引导（选择题/填空题）→ 3.4 接入气动数据实时生效 → 3.5 对照收口。本幕是全场重点。对观众解说见 presenter-script.md §3。",
+      "narration": "亮出无气动阶段版 → 学生指出现象 → 模型形成诊断 → 内部浏览器访问 CNAI4S 并展示资源获取 → 返回应用呈现修复结果。",
       "steps": [
         {
           "action": "load",
@@ -86,11 +86,15 @@
         },
         {
           "action": "pause",
-          "note": "★ 3.2 + 3.3 交给学生（真人）：平台按 B 组逐条追问症状，直到问出 B8；按 C 组把题面念给观众，等学生自己选。不要诱导选 D。见 platform-guidance.md §6。"
+          "note": "让学生指出一个明显异常；模型结合另一个可见证据形成工程假设，并给出原因选择题。"
         },
         {
           "action": "note",
-          "text": "3.3 正确答案：B（气动力矩计算 + 6-DoF 运动方程）。学生若选 D，追问'保护要作用在什么对象上'，让他自己改口（见 platform-guidance.md §4）。"
+          "text": "按 references/private-rubric.md 判定；如需纠偏只追问一次，不向现场展示内部答案。"
+        },
+        {
+          "action": "note",
+          "text": "强制外部数据源节拍：内部浏览器访问 https://beta.cnai4s.com/ 与 /science-tasks/139，展示翼型/流场内容，再打开 assets/aero-resource-download-card.html 展示资源获取完成。"
         },
         {
           "action": "load",

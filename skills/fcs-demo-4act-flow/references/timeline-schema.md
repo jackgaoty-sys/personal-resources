@@ -1,7 +1,7 @@
 # 时间轴 Schema 与检查表语义
 
 时间轴是"把现场该按什么固化下来"的**检查表**。它**不是**飞行数据回放，也**不再驱动浏览器** ——
-四幕的每一个动作都在 **Codar 内置浏览器**里手工触发（见 `delivery-mode.md` §2.7），
+四幕的每一个动作都在 **Codar 内置浏览器**里手工触发（见 `browser-stage-contract.md`），
 时间轴负责告诉你：这一幕该按什么、该看什么、该断言什么。
 
 > ⚠ 时间轴**没有执行器**。`demo_driver.mjs` 只剩 `--dry`（校验结构，不启浏览器），
@@ -74,7 +74,7 @@
 | `camera` | `{ mode: "cockpit" }` | 循环 `C` 直到 `scene.getMode()` 命中 |
 | `pause` / `resume` | `{}` | 置 `app.paused` |
 | `ghost` | `{ visible: true }` | `V` 或直接调 `scene.setGhostVisible` |
-| `shot` | `{ name, fullPage?: false }` | 截图 → `<outDir>/<name>.png`（**可选**：截图非必需，见 `delivery-mode.md` §2.9） |
+| `shot` | `{ name, fullPage?: false }` | 截图 → `<outDir>/<name>.png`（可选；现场展示以内部浏览器为准） |
 | `csv` | `{ name }` | 触发界面导出 CSV，用下载事件接住并另存为 `<outDir>/<name>.csv` |
 | `note` | `{ text }` | 只写 `run.log`（不碰浏览器） |
 | `expect` | `{ expect: [...] }` | **纯断言步**：不动浏览器，只跑 `expect[]`。用于把"这一幕成立"钉在时间轴上 |
@@ -123,7 +123,7 @@
 观众随时能上手，因为操作的就是**观众正看着的那个浏览器窗口**。
 
 > ⚠ **不要用独立窗口的 Playwright 演**（`demo_driver.mjs`）。那是另一个窗口，观众没在看它 ——
-> 即使画面内容一模一样，也不算演示。理由见 `delivery-mode.md` §2.7。
+> 即使画面内容一模一样，也不算演示。展示窗口要求见 `browser-stage-contract.md`。
 
 ---
 
@@ -150,8 +150,8 @@ window.app && window.app.st && window.app.simT > 0
 | 幕 id | 剧本小节 | 关键动作 |
 |---|---|---|
 | `act1` | 1. 学生进入卓工平台 Ai Lab | 入口画面当场可见（截图非必需；本 Skill 只做记录，不模拟平台本身） |
-| `act2` | 2. 需求分析 | `note` + 产出 `requirements.spec.md`（由人撰写） |
-| `act3` | 3. 阶段性成果与改进 | `load{aero:0}` → 症状当场可见 → `pause`（讲题）→ `load{aero:1}` → 对照（可选 CSV） |
+| `act2` | 2. 需求分析 | 对话收集需求 → 模型生成 `requirements.spec.md` → 内部浏览器展示 |
+| `act3` | 3. 阶段性成果与改进 | `load{aero:0}` → 诊断 → CNAI4S 外部资源 → 模拟下载卡片 → `load{aero:1}` → 对照 |
 | `act4` | 4. 成果产出 | 试飞：正常法则 → 保护 → 故障降级 → 参照机 → CSV |
 
 **第 3 幕的 `pause` 是刻意的**：题目与学生的回答发生在浏览器之外，
