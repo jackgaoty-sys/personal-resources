@@ -6,7 +6,10 @@
 //
 // 用法：
 //   node demo_driver.mjs --dir <fcs-demo> [--timeline <json>] [--out <dir>]
-//                        [--url http://localhost:5173] [--headless] [--dry] [--no-pause]
+//                        [--url http://localhost:5173] [--headless] [--dry]
+//
+// 本驱动【没有无人值守模式】。历史上的 --no-pause 已被移除：它会让“教学”被静默跳过，
+// 观众什么都没看到，却产出一堆文件 —— 那就是假演示。只想校验时间轴请用 --dry。
 //
 // 接管热键（在运行本脚本的终端里输入后回车）：
 //   Enter  继续        p     就地暂停        skip  跳过剩余全部暂停点
@@ -16,6 +19,7 @@
 //   · 断言失败【只记不抛】—— 现场演示不能因为一条断言挂掉整场。
 //   · 每步之后有 settleMs 静默期，让画面"被看见"（演示不是跑测试）。
 //   · 幕边界默认暂停，把舞台交回展示人（第 3 幕的题目讲解必须在浏览器之外发生）。
+//   · 暂停点【不可绕过】：接管不可用（stdin 关闭 / 非交互）时直接报错退出，绝不替你继续。
 
 import fs from "node:fs";
 import path from "node:path";
@@ -33,7 +37,13 @@ const OUT = path.resolve(val("--out", "./demo-artifacts"));
 const URL_OVERRIDE = val("--url");
 const HEADLESS = has("--headless");
 const DRY = has("--dry");
-const NO_PAUSE = has("--no-pause");
+
+// 明确拒绝旧旗标：宁可报错，也不要“以为跳过了暂停、其实没跳过”这类静默歧义。
+if (has("--no-pause")) {
+  console.error("✗ --no-pause 已被移除：本驱动只支持实机演示，暂停点必须由真人推进。");
+  console.error("  演示前只想校验时间轴，请用 --dry。见 references/delivery-mode.md。");
+  process.exit(2);
+}
 
 if (!DIR) { console.error("用法: node demo_driver.mjs --dir <fcs-demo 目录> [--timeline ...] [--out ...]"); process.exit(2); }
 const ROOT = path.resolve(DIR);
@@ -84,16 +94,27 @@ function validate(tl) {
 }
 
 // ── 接管 ──
-let SKIP_PAUSES = NO_PAUSE;
+let SKIP_PAUSES = false;   // 只能由真人在暂停点输入 skip 置位，没有别的入口
 const rl = DRY ? null : readline.createInterface({ input: process.stdin, output: process.stdout });
 // stdin 是管道/重定向且已 EOF 时，readline 会自行 close，之后 rl.question 会抛
-// ERR_USE_AFTER_CLOSE。用这个标志把“无法接管”降级为“自动继续”，而不是整场崩掉。
+// ERR_USE_AFTER_CLOSE。注意：这里【不再】降级为“自动继续” —— 那等于无人值守假演示。
 let rlClosed = false;
 if (rl) rl.on("close", () => { rlClosed = true; });
 let pendingNextAct = false;
 
+function abortTakeover() {
+  // 接管不可用 = 演不了。这是硬错误，不是可以“降级处理”的情况。
+  say("✗ 无法接管 —— 本驱动没有无人值守模式。");
+  say("  暂停点必须由真人在真实终端里按 Enter 推进。");
+  say("  演示前只想校验时间轴，请用 --dry。见 references/delivery-mode.md。");
+  return "abort";
+}
+
 function takeover(promptText) {
-  if (!rl || rlClosed || SKIP_PAUSES) return Promise.resolve("continue");
+  // 真人刚刚输入过 skip —— 那是现场时间不够时的主动取舍，允许。
+  if (SKIP_PAUSES) return Promise.resolve("continue");
+  // 接管不可用：绝不“自动继续”，否则整段教学会被静默跳过。
+  if (!rl || rlClosed) return Promise.resolve(abortTakeover());
   return new Promise((resolve) => {
     const onAnswer = (ans) => {
       const a = (ans || "").trim().toLowerCase();
@@ -102,17 +123,16 @@ function takeover(promptText) {
       else if (a === "next") { say("跳到下一幕。"); resolve("next"); }
       else if (a === "p") {
         try { rl.question("   已暂停。再按 Enter 继续 > ", () => resolve("continue")); }
-        catch { rlClosed = true; resolve("continue"); }
+        catch { rlClosed = true; resolve(abortTakeover()); }
       } else resolve("continue");
     };
     try {
       rl.question(`\n⏸  ${promptText}\n   [Enter=继续 / p=暂停 / next=下一幕 / skip=跳过全部暂停 / q=退出] > `, onAnswer);
     } catch {
       // 例：printf '\n' | node demo_driver.mjs … —— stdin 已 EOF，接管不可用。
-      // 降级为自动继续；要无人值守请直接加 --no-pause。
+      // 不降级为自动继续：那会让四幕在没人看的情况下“跑完”，等于假演示。
       rlClosed = true;
-      say("（stdin 已关闭，无法接管 —— 自动继续；无人值守请用 --no-pause）");
-      resolve("continue");
+      resolve(abortTakeover());
     }
   });
 }
@@ -309,6 +329,7 @@ async function runExpects(page, step, ctx) {
 // ── 主流程 ──
 async function main() {
   const tl = loadTimeline();
+  let quitEarly = false;
   const ctx = {
     meta: tl.meta || {},
     defaults: tl.defaults || {},
@@ -352,15 +373,17 @@ async function main() {
     head(`${act.id} · ${act.title || ""}`);
     if (act.narration) say(`讲解提示：${act.narration}`);
 
-    const needPause = (act.pauseBefore ?? true) && !NO_PAUSE;
+    const needPause = (act.pauseBefore ?? true);   // 幕边界一律暂停，没有开关可以关掉
     if (needPause) {
       const r = await takeover(`即将开始【${act.title || act.id}】。`);
-      if (r === "quit") break;
+      if (r === "abort") { await browser.close(); finish(1); return; }
+      if (r === "quit") { quitEarly = true; break; }
     }
 
     for (const step of act.steps || []) {
       if (step.pause) {
         const r = await takeover(`${act.id} 暂停点：${step.note || step.action}`);
+        if (r === "abort") { await browser.close(); finish(1); return; }
         if (r === "quit") { await browser.close(); finish(0); return; }
         if (r === "next") break;
       }
@@ -374,8 +397,11 @@ async function main() {
     }
   }
 
-  say("\n全部幕执行完毕。");
-  await takeover("演示结束。按 Enter 关闭浏览器。").catch(() => {});
+  say(quitEarly
+    ? "\n展示人提前退出 —— 未跑完全部幕（已产出的文件保留）。"
+    : "\n全部幕执行完毕。");
+  // 收尾提示只在“接管本来可用”时才问；否则不必报错。
+  if (rl && !rlClosed) await takeover("演示结束。按 Enter 关闭浏览器。").catch(() => {});
   await browser.close();
   finish(0);
 }
