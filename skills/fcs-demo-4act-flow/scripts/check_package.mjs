@@ -34,6 +34,7 @@ const section = (s) => console.log("\n" + s);
 section("① 包内文件");
 const EXPECTED = [
   "SKILL.md",
+  "agents/openai.yaml",
   "references/fcs-demo-contract.md",
   "references/aero-toggle-spec.md",
   "references/timeline-schema.md",
@@ -55,6 +56,15 @@ for (const f of EXPECTED) {
   const p = path.join(PKG, f);
   if (fs.existsSync(p)) ok(f);
   else bad("缺失：" + f);
+}
+
+const agentConfigPath = path.join(PKG, "agents/openai.yaml");
+if (fs.existsSync(agentConfigPath)) {
+  const src = fs.readFileSync(agentConfigPath, "utf8");
+  if (src.includes("allow_implicit_invocation: true")) ok("Skill 可由明确开演意图触发");
+  else bad("agents/openai.yaml 未允许开演口令触发 Skill");
+  if (src.includes("开始飞控演示")) ok("默认提示包含开演口令");
+  else bad("默认提示缺少开演口令");
 }
 
 // ── ② JSON 可解析 ──
