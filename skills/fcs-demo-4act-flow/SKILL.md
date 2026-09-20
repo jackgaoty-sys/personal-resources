@@ -51,12 +51,18 @@ description: 按《剧本》编排并执行"北航卓工平台 AI Lab · 飞控�
 
 ## 1. 前置条件
 
-- `FCS_DEMO`：飞控系统成品目录（即已开发完毕的 `fcs-demo`）。
-  本 Skill 与它**分离**：所有脚本都通过 `--dir "$FCS_DEMO"` 接收路径，不写死。
-  执行前先 export 并确认目录有效。
+- `FCS_DEMO`：飞控系统成品目录。**本 Skill 已自带一份**：`<SKILL_DIR>/fcs-demo/`
+  （说明见该目录下 `VENDORED.md`）。优先用它，这样**不依赖本地是否还留着 fcs-demo**：
+
+  ```sh
+  export FCS_DEMO="<SKILL_DIR>/fcs-demo"
+  ```
+
+  也可以用外部的 fcs-demo —— 本 Skill 与它**分离**：所有脚本都通过 `--dir "$FCS_DEMO"` 接收路径，不写死。
 - Node.js 运行时（用 `load_workspace_dependencies` 拿到的 Python/Node 路径，不要假设裸 `node`）
-- fcs-demo 已 `npm install`（`node_modules/` 存在）
-- `playwright` 已在 fcs-demo 的 devDependencies 中（驱动浏览器用）
+- fcs-demo 已 `npm install`（`node_modules/` 存在）。**自带的那份不含 `node_modules/`**，首次使用先装：
+  `cd "$FCS_DEMO" && npm install`（可加 `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1`）
+- `playwright` 已在 fcs-demo 的 devDependencies 中（历史驱动脚本用；现在演示不再用它）
 
 自检：
 
@@ -67,6 +73,9 @@ cd "$FCS_DEMO" && ls index.html src/main.js src/fcs/fcs.js src/fdm/adapter.brows
 ---
 
 ## 2. 一次性准备：装"气动开关"
+
+> **自带的那份 fcs-demo 已预装气动开关**（`<SKILL_DIR>/fcs-demo/`）：直接用 `--check` 验证即可，
+> 不需要再打补丁。只有用**外部** fcs-demo 时才需要跑下面的安装命令。
 
 第 3 幕需要的"无气动乱飞版"不再单独建项目，而是**在同一应用内加开关**：
 
@@ -289,6 +298,7 @@ demo-artifacts/
 ```
 fcs-demo-4act-flow/
 ├─ SKILL.md                              本文件：四幕骨架 + 命令
+├─ fcs-demo/                             ★ 演示本体（随包分发，气动开关已预装；见 VENDORED.md）
 ├─ references/
 │  ├─ fcs-demo-contract.md               fcs-demo 接口契约（已核实的真实细节）
 │  ├─ aero-toggle-spec.md                气动开关的技术规格与补丁锚点

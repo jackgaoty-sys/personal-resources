@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>飞控系统演示 · FCS Demo</title>
+<style>
+  :root{
+    --bg:#05080d; --panel:#0a0f18; --line:#1e2a38;
+    --white:#e8f0f8; --dim:#7d8fa4;
+    --green:#00e676; --cyan:#00d9ff; --amber:#ffab00; --red:#ff3d3d; --violet:#b388ff;
+    --mono: ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --glass: rgba(7,12,20,.74);
+    --hair:  rgba(70,110,155,.30);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--bg);color:var(--white);font-family:var(--mono);overflow:hidden}
+
+  #boot{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+    flex-direction:column;gap:14px;background:var(--bg);z-index:99;font-size:15px;color:var(--cyan)}
+  #boot .bar{width:280px;height:3px;background:#16202c;overflow:hidden;border-radius:2px}
+  #boot .bar i{display:block;height:100%;width:40%;background:var(--cyan);animation:sl 1.1s infinite ease-in-out}
+  @keyframes sl{0%{transform:translateX(-100%)}100%{transform:translateX(350%)}}
+
+  /* ══════════════════════════════════════════════════════════════
+     布局：3D 视景**满屏铺底**，所有面板作为半透明浮层叠在上面。
+     改自原来的 `grid: 58% 1fr` —— 那种做法把 3D 关在自己的格子里，
+     既浪费画面，也让"视景"退化成一块控件。满屏 + 可收起的浮层才是
+     正确的层级关系：3D 是主体，面板是工具。
+     参考实现（同行 3D 模拟器）实测 UI 占了 45% 像素且**不可收起**，
+     所以这里必须同时做到 ①半透明 ②可折叠，否则就是重蹈覆辙。
+     ══════════════════════════════════════════════════════════════ */
+  #ext{position:fixed;inset:0;z-index:0;background:#05080d;overflow:hidden}
+  #ext>canvas{display:block;width:100%;height:100%}
+
+  #ui{position:fixed;inset:0;z-index:2;pointer-events:none}
+  #ui>*{pointer-events:auto}
+
+  .panel{
+    position:absolute;
+    background:var(--glass);
+    -webkit-backdrop-filter:blur(12px) saturate(1.25);
+    backdrop-filter:blur(12px) saturate(1.25);
+    border:1px solid var(--hair);
+    border-radius:7px;
+    box-shadow:0 8px 28px rgba(0,0,0,.50);
+    display:flex;flex-direction:column;min-height:0;
+  }
+  .ph{display:flex;align-items:center;gap:7px;flex:none;
+    padding:5px 8px;border-bottom:1px solid rgba(70,110,155,.20);
+    font-size:11px;color:var(--dim);letter-spacing:.5px;white-space:nowrap}
+  .ph .n{color:var(--white)}
+  .pb{flex:1;min-height:0;overflow:auto;padding:6px 8px}
+  /* ⚠ 这里必须 !important：
+     下面 #instPanel .pb{display:flex} 带 ID，优先级 (0,1,1,0)
+     高于本条的无 ID 选择器 (0,0,3,0)，不加就盖不住。
+     实测症状：收起仪表面板后 #pfd 宽度仍是 248px 而不是 0 —— 面板看着收了，
+     画布还在原地继续渲染。 */
+  .panel.collapsed .pb{display:none!important}
+  .panel.collapsed{width:auto;height:auto}
+  .panel.collapsed .ph{border-bottom:0}
+  .tog{margin-left:auto;flex:none;padding:1px 7px;font-size:11px;line-height:1.35;
+    background:transparent;border:1px solid var(--line);color:var(--dim)}
+  .tog:hover{border-color:var(--cyan);color:var(--cyan)}
+
+  /* 顶栏 */
+  #topbar{top:8px;left:8px;right:8px;flex-direction:row;align-items:center;
+    gap:10px;padding:6px 10px;flex-wrap:wrap}
+  #topbar .title{font-size:13px;font-weight:700;letter-spacing:.5px}
+  #clock{color:var(--cyan);font-variant-numeric:tabular-nums;font-size:12px}
+  #protoTags{color:var(--cyan);font-size:11px}
+  .spacer{flex:1 1 auto;min-width:4px}
+
+  /* ── 警告灯（3D 视野上方中央）──
+     核心规矩：【正常时全灭】。真实座舱里“一切正常”是用没有灯亮来表达的，
+     不是写一行“正常”。所以默认 hidden，有任何异常才点亮对应的牌子。
+     旧的常显状态条读起来像调试输出，不是仪表。 */
+  #annun{position:absolute;top:96px;left:50%;transform:translateX(-50%);
+    display:flex;flex-direction:row;align-items:center;justify-content:center;
+    gap:8px;flex-wrap:wrap;max-width:min(680px,86vw)}
+  #annun[hidden]{display:none}
+  .lamp{padding:4px 12px;border-radius:3px;font-size:14px;font-weight:700;
+    letter-spacing:.08em;border:1px solid;white-space:nowrap}
+  /* 红=主警告（需立即处置）；琥珀=主警戒 */
+  .lamp.warning{color:#ffe2e2;background:rgba(186,30,30,.88);border-color:#ff6b6b;
+    text-shadow:0 0 8px rgba(255,120,120,.85);box-shadow:0 0 18px rgba(255,61,61,.45)}
+  .lamp.caution{color:#1a1200;background:rgba(232,168,32,.92);border-color:#ffcf6b;
+    box-shadow:0 0 14px rgba(255,207,107,.40)}
+
+  /* 事件日志 */
+  #logPanel{top:52px;left:8px;width:306px;max-height:calc(100vh - 52px - 214px)}
+  #logList{font-size:11.5px;line-height:1.45}
+  .ev{display:flex;gap:6px;padding:1.5px 0;border-bottom:1px solid rgba(70,110,155,.10);
+    color:var(--dim);white-space:nowrap;overflow:hidden}
+  .ev .t{flex:none;width:48px;text-align:right;opacity:.8;font-variant-numeric:tabular-nums}
+  .ev .lv{flex:none;width:38px;font-weight:700}
+  .ev .tx{flex:1;overflow:hidden;text-overflow:ellipsis}
+  .ev[data-lv="info"]  .lv{color:var(--dim)}
+  .ev[data-lv="mode"]  .lv{color:var(--cyan)}
+  .ev[data-lv="phase"] .lv{color:var(--violet)}
+  .ev[data-lv="hw"]    .lv{color:var(--green)}
+  .ev[data-lv="alert"] .lv{color:var(--amber)}
+  .ev[data-lv="fail"]  .lv{color:var(--red)}
+  .ev[data-lv="alert"],.ev[data-lv="fail"]{color:var(--white)}
+
+  /* 仪表 */
+  #instPanel{top:52px;right:8px;width:318px}
+  #instPanel .pb{padding:0;display:flex;flex-direction:column;overflow:hidden}
+  #pfd,#ecam{display:block;width:100%;border-radius:0}
+  #pfd{height:196px}
+  #ecam{height:150px;border-top:1px solid rgba(70,110,155,.20)}
+
+  /* 座舱视角：把仪表盘做成一块「仪表板」—— 贴底、向后倾斜、带表框与眉檐遮光罩，
+     而不是把面板原样挪到屏幕正中悬浮。
+     注意：面板加了 CSS 透视变换，所以 main.js 的 fit() 必须用布局尺寸
+     （offsetWidth/offsetHeight）而不是 getBoundingClientRect()。 */
+  body.cam-cockpit #instPanel{
+    top:auto; bottom:-1.2vh;
+    left:50%; right:auto;
+    transform:translateX(-50%) perspective(1150px) rotateX(10deg);
+    transform-origin:50% 100%;
+    width:min(900px,74vw);
+    padding:0;
+    border-radius:12px 12px 4px 4px;
+    border:1px solid #05070a;
+    /* 实体面板，不是上面的毛玻璃 */
+    background:linear-gradient(180deg,#1c222b 0%,#161b23 38%,#0d1117 100%);
+    -webkit-backdrop-filter:none; backdrop-filter:none;
+    box-shadow:
+      inset 0 1px 0 rgba(160,190,220,.20),
+      inset 0 -14px 26px rgba(0,0,0,.55),
+      0 -2px 10px rgba(0,0,0,.50),
+      0 22px 46px rgba(0,0,0,.78);
+    /* 不让它挡住 3D 视景的交互 —— trendPanel 那个坑的教训 */
+    pointer-events:none;
+    overflow:visible;
+  }
+  /* 眉檐（遮光罩）已移除。
+     它原本是一条横贯视野的暗带（顶部还有 1px 亮边，left/right 各向外伸 14vw），
+     在座舱视角里读起来不是“遮光罩”，而是“仪表盘上方一条莫名其妙的横线”。
+     想恢复就把它加回来——但注意 left/right:-14vw 会盖住大半个屏幕。 */
+  /* 面板四角螺钉 */
+  body.cam-cockpit #instPanel::after{
+    content:'';
+    position:absolute; inset:.9vh 1.1vh;
+    border-radius:9px;
+    background:
+      radial-gradient(circle at 1.1vh 1.1vh, #414b58 0 1.5px, transparent 1.9px),
+      radial-gradient(circle at calc(100% - 1.1vh) 1.1vh, #414b58 0 1.5px, transparent 1.9px),
+      radial-gradient(circle at 1.1vh calc(100% - 1.1vh), #414b58 0 1.5px, transparent 1.9px),
+      radial-gradient(circle at calc(100% - 1.1vh) calc(100% - 1.1vh), #414b58 0 1.5px, transparent 1.9px);
+  }
+  body.cam-cockpit #instPanel .ph{display:none}
+  /* 强制展开：“收起”是上一种视角留下的状态，而座舱里 .ph 被藏了、没有按钮可切回来 */
+  body.cam-cockpit #instPanel .pb{
+    display:flex!important;
+    flex-direction:row;
+    align-items:flex-end;
+    justify-content:center;
+    gap:3.4vh;
+    padding:2.6vh 3.4vh 3.4vh;
+  }
+  /* PFD 居中偏左，ECAM 在右 —— 像真机那样并排嵌在板上 */
+  body.cam-cockpit #pfd, body.cam-cockpit #ecam{
+    width:auto; flex:0 0 auto;
+    background:#000;
+    border-radius:2px;
+    /* 表框用 box-shadow 展开，不占布局 —— 避开 box-sizing 的坑 */
+    box-shadow:
+      0 0 0 5px #0b0f14,
+      0 0 0 6px #333d49,
+      0 0 0 7px #05070a,
+      inset 0 0 20px rgba(0,0,0,.90),
+      0 10px 20px rgba(0,0,0,.60);
+  }
+  body.cam-cockpit #pfd{height:31vh; aspect-ratio:.85}
+  body.cam-cockpit #ecam{height:31vh; aspect-ratio:1.30}
+  /* 座舱视角：直接【隐藏】时间历程，而不是把它收起 ——
+     它位于 bottom:56px、高 152px，正好压在仪表板下半部。
+     用 CSS 作用域隐藏，切回其他视角会自动恢复（连同原先的收起状态）。
+     安全：渲染循环已有 if (tr.ctx) 保护 —— display:none 时 offsetWidth=0，
+     fit() 直接返回 {ctx:null}，不会对空画布报错。 */
+  body.cam-cockpit #trendPanel{display:none}
+  /* 注：新的警告灯【不】在座舱视角隐藏 —— 它正常时就是灭的，不会挡视线，
+     而且真机的警告灯本来就在遮光罩上方的主视场里。 */
+
+  /* 时间历程 */
+  #trendPanel{bottom:56px;left:8px;right:8px;height:152px}
+  /* 坑：上面的 ID 选择器 (1,0,0) 会压过 .panel.collapsed 的 height:auto (0,2,0)，
+     导致收起后仍占满 152px 并挡住 3D 视景的点击。必须用 (1,1,0) 再压回去。 */
+  #trendPanel.collapsed{height:auto}
+  #trendPanel .pb{padding:0;overflow:hidden}
+  #trend{display:block;width:100%;height:100%}
+
+  /* 底栏 */
+  #barBottom{bottom:8px;left:8px;right:8px;flex-direction:row;align-items:center;
+    gap:9px;padding:6px 10px;flex-wrap:wrap}
+  .grp{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0}
+  .grp>span.lbl{color:var(--dim);font-size:11px;letter-spacing:.5px;margin-right:1px}
+  button{font-family:var(--mono);font-size:12px;padding:5px 10px;border-radius:3px;cursor:pointer;
+    background:#131c28;color:var(--white);border:1px solid var(--line);transition:.12s}
+  button:hover{border-color:var(--cyan);color:var(--cyan)}
+  button.on{background:var(--amber);color:#150c00;border-color:var(--amber);font-weight:700}
+  button.pri{background:#0d2f22;border-color:#1f6b52;color:var(--green);font-weight:700}
+  .sep{width:1px;height:20px;background:var(--line)}
+  select{font-family:var(--mono);font-size:12px;padding:5px 8px;border-radius:3px;
+    background:#131c28;color:var(--white);border:1px solid var(--line);cursor:pointer}
+  .badge{padding:4px 10px;border-radius:3px;font-size:12px;font-weight:700;border:1px solid;flex:none}
+  .badge.ok{color:var(--green);border-color:var(--green)}
+  .badge.warn{color:var(--amber);border-color:var(--amber)}
+  .badge.bad{color:var(--red);border-color:var(--red)}
+  .hint{color:var(--dim);font-size:11px;margin-left:auto}
+
+  /* 中屏：先让日志让位 —— 时间历程是这次新增的核心信息，优先保留。
+     断点原来写的 980px 太高，很多笔记本窗口宽度都会掉进去，
+     结果一进来条带图就被隐藏了。 */
+  @media (max-width:1180px){
+    #logPanel{display:none}
+  }
+  /* 窄屏：再让条带图让位，只保留核心仪表与底栏 */
+  @media (max-width:900px){
+    #trendPanel{display:none}
+    #instPanel{width:250px}
+    #pfd{height:160px}#ecam{height:120px}
+    .hint{display:none}
+  }
+
+  /* ── 坠毁遮罩：盖在 3D 全屏背景正中 ──
+     坠毁是【终止态】：不允许继续，只能重新开始。
+     因此这是一个模态层，且下方的控制按钮会被 disabled。 */
+  #crashOverlay{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;
+    background:rgba(24,4,4,0.66);backdrop-filter:blur(4px);animation:crashIn .22s ease-out}
+  #crashOverlay[hidden]{display:none}
+  @keyframes crashIn{from{opacity:0}to{opacity:1}}
+  .crashCard{background:#140708;border:2px solid var(--red);border-radius:12px;
+    padding:26px 34px 24px;text-align:center;max-width:min(600px,88vw);
+    box-shadow:0 0 48px rgba(255,61,61,.38), inset 0 0 30px rgba(255,61,61,.07)}
+  .crashTitle{font-size:36px;font-weight:800;letter-spacing:.24em;color:var(--red);
+    text-shadow:0 0 20px rgba(255,61,61,.65)}
+  .crashSub{color:#ffb3b3;font-size:13px;margin-top:6px;letter-spacing:.1em}
+  .crashCause{color:#ffdcdc;font-size:13px;line-height:1.75;margin:16px 0 4px;
+    border-top:1px solid rgba(255,61,61,.3);padding-top:14px}
+  .crashHint{color:#b98f8f;font-size:12px;margin:12px 0 18px;line-height:1.6}
+  .crashHint b{color:#ffdcdc}
+  #crashRestart{font-size:15px;font-weight:700;padding:11px 28px;border-color:var(--red);
+    color:#ffdcdc;background:#2a0d0d}
+  #crashRestart:hover{background:var(--red);color:#1a0505;border-color:var(--red)}
+  button:disabled{opacity:.32;cursor:not-allowed;pointer-events:none}
+</style>
+</head>
+<body>
+  <div id="boot"><div id="bootText">初始化…</div><div class="bar"><i></i></div></div>
+
+  <!-- 满屏 3D 视景（背景层） -->
+  <div id="ext"></div>
+
+  <!-- 坠毁遮罩：居中盖在 3D 上。坠毁后只能重新开始，不能继续。 -->
+  <div id="crashOverlay" hidden>
+    <div class="crashCard">
+      <div class="crashTitle">坠 毁</div>
+      <div class="crashSub">本次运行已终止</div>
+      <div class="crashCause" id="crashCause">—</div>
+      <div class="crashHint">不允许继续。按 <b>R</b> 或点击下方按钮重新开始。</div>
+      <button id="crashRestart">重新开始</button>
+    </div>
+  </div>
+
+  <!-- 浮层 -->
+  <div id="ui">
+    <!-- 警告灯：正常时【全灭】，异常才亮。3D 视野上方中央。 -->
+    <div id="annun" hidden></div>
+    <header class="panel" id="topbar">
+      <span class="title">FCS DEMO</span>
+      <span id="clock">T+0.0s</span>
+      <span class="badge ok" id="lawBadge">NORMAL LAW</span>
+      <span id="protoTags">保护未介入</span>
+      <span class="spacer"></span>
+      <button id="pauseBtn" title="暂停/继续（空格键）。暂停时物理、螺旋桨、环绕视角全部冻结">暂停</button>
+      <span class="grp"><span class="lbl">倍速</span><span id="rates"></span></span>
+      <select id="preset" title="场景预设：一键施加一组故障/法则，用于演示连锁反应">
+        <option value="">场景预设…</option>
+      </select>
+      <button id="aeroBtn" title="气动开关（演示用）：?aero=1 = 真 6-DoF 闭环；?aero=0 = 无气动阶段版。点击切换并重新加载">气动: --</button>
+      <button id="csvBtn" title="把已录制的时间历程导出为 CSV">导出 CSV</button>
+      <button id="collapseAll" title="收起/展开全部浮层，露出完整视景">收起面板</button>
+    </header>
+
+    <section class="panel" id="logPanel">
+      <div class="ph"><span>飞控事件日志</span><span class="n" id="logCount">0</span>
+        <button class="tog" data-for="logPanel">▾</button></div>
+      <div class="pb" id="logList"></div>
+    </section>
+
+    <section class="panel" id="instPanel">
+      <div class="ph"><span>主飞行显示 / 发动机与告警</span>
+        <button class="tog" data-for="instPanel">▾</button></div>
+      <div class="pb">
+        <canvas id="pfd"></canvas>
+        <canvas id="ecam"></canvas>
+      </div>
+    </section>
+
+    <section class="panel" id="trendPanel">
+      <div class="ph"><span>时间历程</span><span id="trendTabs" class="grp"></span>
+        <button class="tog" data-for="trendPanel">▾</button></div>
+      <div class="pb"><canvas id="trend"></canvas></div>
+    </section>
+
+    <footer class="panel" id="barBottom">
+      <div class="grp">
+        <span class="lbl" title="本次运行的起始法则。法则属于【开局条件】：中途改法会让真机与幽灵机的作动器限速历史不一致，导致对照失真——所以改这里会直接开一次新运行">开局法则</span>
+        <select id="initLaw">
+          <option value="NORMAL">NORMAL</option>
+          <option value="ALTERNATE">ALTERNATE</option>
+          <option value="DIRECT">DIRECT</option>
+        </select>
+      </div>
+      <div class="sep"></div>
+      <div class="grp">
+        <span class="lbl" title="飞行中人工改法，用于演示实时降级（此时不再是一次干净的对照）">飞行中改法</span>
+        <button id="lawNormal">NORMAL</button>
+        <button id="lawAltn">ALTERNATE</button>
+        <button id="lawDirect">DIRECT</button>
+      </div>
+      <div class="sep"></div>
+      <div class="grp">
+        <span class="lbl">故障注入</span>
+        <button id="fAlpha">α 传感器</button>
+        <button id="fAhrs">AHRS</button>
+        <button id="fElev">升降舵作动器</button>
+        <button id="fAil">副翼卡阻</button>
+        <button id="fRud">方向舵卡阻</button>
+      </div>
+      <div class="sep"></div>
+      <button id="camBtn">视角: 追机</button>
+      <button id="ghostLblBtn" title="收起/展开参照机指示器的标签（收起后仅保留小箭头，方向信息不丢）">参照机标签: 展开</button>
+      <button id="reset">重置</button>
+      <!-- 键位提示：只把 T/G 拆开写清加减。
+           WASD/QE 沿用 “键A/键B → 动作” 的简写就够（读者能直接对上），
+           但 “T/G 油门” 连方向都没有，必须逐个写明。 -->
+      <span class="hint" title="方向键等效：↑↓ 推拉杆 · ←→ 滚转。空格 = 暂停/继续。V = 显示/隐藏无飞控参照机。"><b>W/S</b> 推拉杆 · <b>A/D</b> 滚转 · <b>Q/E</b> 偏航 · <b>T</b> 加油门 · <b>G</b> 减油门 · <b>空格</b> 暂停 · <b>C</b> 视角 · <b>V</b> 参照机 · <b>R</b> 重置</span>
+    </footer>
+  </div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

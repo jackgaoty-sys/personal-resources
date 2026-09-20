@@ -8,7 +8,12 @@
 ## 0. 演示前 30 分钟 · 预热清单
 
 ```sh
-export FCS_DEMO="/path/to/fcs-demo"    # ← 改成你的实际路径（已开发完毕的飞控系统目录）
+# 本 Skill 自带一份 fcs-demo（<SKILL_DIR>/fcs-demo/，气动开关已预装）——优先用它：
+export FCS_DEMO="<SKILL_DIR>/fcs-demo"
+# 也可用外部的：export FCS_DEMO="/path/to/fcs-demo"
+
+# 自带的那份不含 node_modules，首次先装：
+#   cd "$FCS_DEMO" && npm install          # 可加 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 
 # ① 补丁在位
 node scripts/apply_aero_toggle.mjs --dir "$FCS_DEMO" --check

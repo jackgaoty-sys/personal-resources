@@ -18,3 +18,12 @@ AutoNote/_system/review-state.json
 !.env.example
 *.pem
 *.key
+
+# Vendored fcs-demo: build artifacts are not committed
+# (restore with `npm install` / `npm run build`; the demo runs from source via `npm run dev`)
+skills/fcs-demo-4act-flow/fcs-demo/node_modules/
+skills/fcs-demo-4act-flow/fcs-demo/dist/
+skills/fcs-demo-4act-flow/fcs-demo/backups/*.tar.gz
+skills/fcs-demo-4act-flow/fcs-demo/experiments/out/*.png
+# 上游 JSBSim 源码树自带 .git（嵌套仓库）——不随包分发，防止误提交成 gitlink
+skills/fcs-demo-4act-flow/fcs-demo/vendor/jsbsim/.git/
