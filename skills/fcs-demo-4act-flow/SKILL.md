@@ -1,0 +1,256 @@
+---
+name: fcs-demo-4act-flow
+description: 按《剧本》编排并执行"北航卓工平台 AI Lab · 飞控系统"四幕教学演示流程——进入平台 → 需求分析引导 → 输出"有前端、无气动、乱飞"的阶段版并引导学生排查 → 从 AI for Science 取回气动数据接入后实时修复 → 成品试飞展示。内置同一应用内的气动开关（?aero=0/1，假 FDM 适配器）、脚本化时间轴驱动、可手动接管、截图/CSV 证据留存。当用户提到飞控系统演示、卓工平台演示、剧本流程、气动开关、"乱飞"阶段版、演示回放、教学引导问题、fcs-demo 演示编排时使用。
+---
+
+# 飞控系统四幕教学演示 · 流程编排 Skill
+
+把 `fcs-demo`（已开发完毕的飞控系统）当作**成品态**，按《剧本》倒推出四幕演示流程，
+并让第 3 幕的"阶段性产物（有前端、无气动、乱飞）"**能在同一个应用里一键切换出来**。
+
+本 Skill 只编排流程与产物，不重写飞控内核。飞控已经写好了，本流程要做的是
+**把成品"演回去"**——让观众相信它是从零长出来的。
+
+---
+
+## 0. 读这份文档的顺序
+
+1. 先读本文件，拿到四幕骨架和执行命令。
+2. **现场台词**读 `references/presenter-script.md`（展示人问话本，可直接照念）。
+3. 需要改代码时读 `references/aero-toggle-spec.md`。
+4. 需要写驱动脚本或调时间轴时读 `references/timeline-schema.md`。
+5. 现场执行前读 `references/runbook.md`（操作单 + 应急）。
+6. 需要引导话术/题目时读 `references/quiz-bank.md`。
+7. 对 fcs-demo 内部接口不确定时读 `references/fcs-demo-contract.md`。
+
+---
+
+## 1. 前置条件
+
+- `FCS_DEMO`：飞控系统成品目录（即已开发完毕的 `fcs-demo`）。
+  本 Skill 与它**分离**：所有脚本都通过 `--dir "$FCS_DEMO"` 接收路径，不写死。
+  执行前先 export 并确认目录有效。
+- Node.js 运行时（用 `load_workspace_dependencies` 拿到的 Python/Node 路径，不要假设裸 `node`）
+- fcs-demo 已 `npm install`（`node_modules/` 存在）
+- `playwright` 已在 fcs-demo 的 devDependencies 中（驱动浏览器用）
+
+自检：
+
+```sh
+cd "$FCS_DEMO" && ls index.html src/main.js src/fcs/fcs.js src/fdm/adapter.browser.js package.json
+```
+
+---
+
+## 2. 一次性准备：装"气动开关"
+
+第 3 幕需要的"无气动乱飞版"不再单独建项目，而是**在同一应用内加开关**：
+
+- `?aero=1`（默认）→ 真 6-DoF：JSBSim WASM 气动力矩闭环
+- `?aero=0` → 无气动：换用假 FDM 适配器，姿态只受操纵与噪声驱动，没有升力/气动阻尼/配平平衡点
+
+fcs-demo 的 README 已确认注入点成立：*"换动力学实现只需改 `adapter.browser.js` 的 `createFdm`，
+`main.js` 和 `fcs/` 零改动"*。
+
+```sh
+node scripts/apply_aero_toggle.mjs --dir "$FCS_DEMO"          # 打补丁（幂等）
+node scripts/apply_aero_toggle.mjs --dir "$FCS_DEMO" --check  # 只检查是否已打
+node scripts/apply_aero_toggle.mjs --dir "$FCS_DEMO" --revert # 回滚
+```
+
+打完补丁后：
+
+```sh
+cd "$FCS_DEMO" && npm run dev
+# 真 6-DoF：      http://localhost:5173/?aero=1   （dev 下基路径为 /，即 http://localhost:5173/?aero=1）
+# 无气动阶段版：  http://localhost:5173/?aero=0
+```
+
+顶栏会出现 `气动: 开 / 关` 按钮，点击即切换（会重新加载页面）。
+
+### 装完必须跑一次症状回归
+
+```sh
+node scripts/verify_noaero.mjs --dir "$FCS_DEMO"
+```
+
+它把 **fcs-demo 的真实 FCS** 与假 FDM 接成闭环跑四个场景，验证第 3 幕的症状确实存在。
+“乱飞”是靠**调参数**做出来的（不是推导出来的），而其中两条约束是反直觉的
+（滚转噪声必须低频、俯仰噪声必须高频），很容易被“顺手调大一点”改坏 ——
+改坏后页面看着还好好的，但症状没了，演示当场就废。所以这一步不是可选项。
+失败原因与实测基线见 `references/aero-toggle-spec.md` §2、§5。
+
+> **幂等性**：脚本按“锚点字符串”打补丁，重复执行不会叠加（已完整安装时直接报告无需改动）；
+> 首次安装前会把原文件备份到 `<FCS_DEMO>/backups/aero-toggle/original/`，
+> 该备份**永不被后续执行覆盖**，所以 `--revert` 一定能回到真原件（已逐字节验证）。
+> 锚点找不到时脚本**报错退出**，不会静默改坏文件。
+
+---
+
+## 3. 四幕流程
+
+> **角色提醒：剧本里的“学生”就是展示人本人。**
+> 所以现场是“一个人对着 Agent 演”：展示人既要对平台说话（驱动流程），
+> 又要对观众说话（讲解）。两套词都在 `references/presenter-script.md`。
+> 一个直接后果：“学生答错 → 平台纠正”这类戏**不会自己发生**，
+> 必须由展示人自己先把错答案说出口（或把选择权交给观众）。
+
+《剧本》原文的四幕，与可执行步骤的对应关系：
+
+| 幕 | 剧本要点 | 交付/证据 |
+|---|---|---|
+| 1 | 进入卓工平台 → 跳转网页版 Codar | 入口截图 |
+| 2 | 学生提需求 → 平台引导提问 → 学生整理出需求与方案 | `requirements.spec.md`（需求规格） |
+| 3 | 平台给出阶段版（有前端、无气动、乱飞）→ 展示人指出 bug → 平台引导（选择/填空）→ 跳 AI for Science 取数据 → 修改后实时看到“能遵循空气动力学飞行” | 对照截图 + 对照 CSV |
+| 4 | 产出完整产品 → 展示人试飞与功能展示 | 试飞截图 + 导出 CSV |
+
+### 第 1 幕 · 进入平台
+
+- **目的**：交代场景，不是重点，控制在 15 秒内。
+- **操作**：平台左侧导航栏点 AI Lab → 跳到网页版 Codar。
+- **要点**：这一步讲的是"Where"，不要在这里展开技术。
+
+### 第 2 幕 · 需求分析（引导式）
+
+- **目的**：让观众看到"学生在被引导后自己想清楚要什么"。
+- **操作**：
+  1. 学生提出："我想做一个飞控系统。"
+  2. 平台抛出引导问题（题库见 `references/quiz-bank.md` 的 A 组），**一次只问一个**，
+     用户回答后再追问。核心三问：控制什么量、包线保护做到哪、故障后怎么办。
+  3. 学生作答后，把结论固化成 `requirements.spec.md`
+     （用 `assets/requirements.spec.template.md` 起头，存到演示产出目录）。
+- **关键**：引导问题必须能**收敛到 fcs-demo 已有的能力**上，否则第 4 幕兑现不了。
+  也就是说，引导的落点是：俯仰/滚转/偏航三通道增稳、NORMAL/ALTERNATE/DIRECT 三套法则、
+  迎角与载荷与坡度的包线保护、五类故障注入、PFD/ECAM 显示。
+- **产出**：`requirements.spec.md`。
+
+### 第 3 幕 · 阶段成果与改进（本流程的技术核心）
+
+分四个节拍，节拍之间**必须留出"学生说话"的停顿**：
+
+**3.1 亮出阶段版**
+- 加载 `?aero=0`。前端（PFD/ECAM/3D/事件日志/时间历程）全在、控制条全能用。
+- 但飞机没有空气动力学（实测）：松手坡度自己摆到 **±18°**；高度单调下降，约 **-1680 fpm**；
+  迎角在 -4.5°~10.3° 之间缓摆；过载恒 **1.04g**；配平拨了没用。
+- 顶栏“气动: 关”，启动日志里写的是“简化动力学（无气动数据）”——**系统自己承认了这一版缺什么**。
+
+**3.2 学生指出 bug**
+- 让展示人指出症状（学生就是展示人）。可用 `references/quiz-bank.md` 的 B 组症状清单逐条对。
+- 症状必须是**看得见**的：坡度自己乱摆 + 高度曲线一路向下 + 迎角带缓摆。
+- ⚠ **B7 不要讲成“保护失灵”**：拉杆时 `LOAD`/`PITCH` 标签其实会亮，飞机却不理会。
+  正确讲法是“保护算对了，但没有可作用的物理对象”——这正好是 C 组迷惑项 D 的解说。
+
+**3.3 平台引导思考（选择题/填空题）**
+- 抛题："要让它遵守空气动力学，必须补上哪一块？"
+- 选项见 `references/quiz-bank.md` 的 C 组，正确答案指向**气动数据 + 6-DoF 动力学内核**。
+- 学生答对后，进入 3.4。
+
+**3.4 跳 AI for Science 取数据并接入**
+- 这一拍在演示里表现为"跳转另一个平台、下载数据、回到项目、改完"。
+- 真实映射（讲的时候可以如实说，反而更可信）：所缺的"数据"就是
+  **c172p 的气动/发动机/螺旋桨数据表与 JSBSim 6-DoF 内核**，即
+  `public/data/aircraft/c172p/c172p.xml`、`public/data/engine/*.xml`、`public/data/jsbsim_wasm.wasm`。
+- 接入动作 = 把气动开关拨回 `?aero=1`（或点顶栏"气动"按钮）。
+- **实时生效**：无需重启后端，页面就在观众眼前从"乱飞"变成"能平飞、能配平、能响应"。
+
+**3.5 收口（最重要的对比）**
+- 用同一组操纵输入对比 `aero=0` 与 `aero=1`，把两条曲线并排讲。
+- 现成证据（fcs-demo 里已有，可直接引用）：
+  - `experiments/out/A1_无飞控_DIRECT.csv` vs `experiments/out/A2_有飞控_NORMAL.csv`
+  - `experiments/out/B1_无飞控_DIRECT.csv` vs `experiments/out/B2_有飞控_NORMAL.csv`
+  - `experiments/out/C1_传感器正常.csv` vs `experiments/out/C2_传感器故障.csv`
+- 自己复现一组：两幕各点一次顶栏 `导出 CSV`，落到演示产出目录。
+- **产出**：`aero-off-*.png/csv`、`aero-on-*.png/csv`。
+
+### 第 4 幕 · 成品试飞
+
+- **操作**：保持 `?aero=1`，展示人手操或让驱动脚本按时间轴跑一段：
+  - `W/S` 俯仰 · `A/D` 滚转 · `Q/E` 偏航 · `T/G` 油门 · `空格` 暂停 · `C` 视角 · `V` 参照机 · `R` 重置
+  - 底部控制条：`开局法则`（NORMAL/ALTERNATE/DIRECT）、`飞行中改法`、`故障注入`、`场景预设`
+- **功能展示清单**（按时间富余程度取舍）：
+  1. 正常法则平飞 + 松杆航迹保持
+  2. 包线保护：满杆拉到底 → `LOAD` / `ALPHA PROT` 介入，事件日志出现"保护介入"
+  3. 场景预设"α 传感器失效 → ALTN LAW"→ 法则降级并记录原因
+  4. 场景预设"AHRS 失效 → DIRECT LAW"→ 保护丢失，飞机变"生"
+  5. 按 `V` 打开**无飞控参照机**：同杆位同油门，去掉增稳与保护，肉眼看到两条轨迹分岔
+  6. 导出 CSV 收尾（可归档）
+- **产出**：试飞截图 + 导出的 CSV。
+
+> 参照机（`V` 键）是第 4 幕最值钱的展示——它把"飞控到底做了什么"变成了**同框对比**。
+> 第 3 幕的"乱飞"其实等价于参照机的行为，两幕可以互相呼应着讲。
+
+---
+
+## 4. 时间轴驱动（脚本化 + 可手动接管）
+
+四幕可以手工执行，也可以用 `assets/timeline.default.json` 驱动：
+
+```sh
+# 先起 dev server
+cd "$FCS_DEMO" && npm run dev &
+# 再跑时间轴（接管热键见下）
+node scripts/demo_driver.mjs --dir "$FCS_DEMO" --timeline assets/timeline.default.json \
+  --out ./demo-artifacts
+```
+
+- `--dry` 只校验时间轴，不启浏览器。
+- 默认在**每个"幕"的边界暂停并等回车**，这正是"可手动接管"：
+  按回车继续，输入 `p` 暂停当前节拍直至再回车，输入 `skip` 跳到下一幕，输入 `q` 退出。
+- 每步可带断言 `expect`，不满足时**高亮报错但不中断**（现场演示不能因为断言挂掉）。
+- 详见 `references/timeline-schema.md`。
+
+手工执行也完全合法——时间轴只是把"该按什么"固化下来，避免现场记错。
+
+---
+
+## 5. 产出物
+
+统一落到一个产出目录（默认 `./demo-artifacts/`，可 `--out` 指定）：
+
+```
+demo-artifacts/
+├─ requirements.spec.md         第 2 幕：需求规格
+├─ act2-*.png                   第 2 幕截图
+├─ act3-aero-off-*.png|.csv     第 3 幕：无气动
+├─ act3-aero-on-*.png|.csv      第 3 幕：接入气动后
+├─ act4-*.png|.csv              第 4 幕：试飞
+└─ run.log                      驱动日志（含每步断言结果）
+```
+
+---
+
+## 6. 红线
+
+- **不要**为了让"乱飞"更好看而让阶段版随机崩溃/闪退：乱飞要是**可解释的物理缺失**，
+  不能是 bug。坠毁遮罩（触地）本身是合法症状，但要能讲清"因为没有升力"。
+- **不要**在 `?aero=0` 下宣称"JSBSim 已装载"。补丁已把启动日志改成如实描述，不要改回去。
+- **不要**修改 `src/fcs/fcs.js` 的舵面符号约定（文件头已注明改了就是正反馈发散）。
+- **不要**把 `?aero=0` 的阶段版当成交付物给平台方；它是演示道具，交付形态是 `?aero=1`。
+- 演示前**必须**确认 dev server 端口未被占用，并提前把页面加载一遍预热 WASM（约 1.5 MB）。
+- 断网风险：真实地理底图（Esri 影像 / AWS 高程）需要外网。断网时会自动降级为程序化地面，
+  画面仍在，但**要提前说明**，否则会被当成"演示坏了"。
+
+---
+
+## 7. 目录
+
+```
+fcs-demo-4act-flow/
+├─ SKILL.md                              本文件：四幕骨架 + 命令
+├─ references/
+│  ├─ fcs-demo-contract.md               fcs-demo 接口契约（已核实的真实细节）
+│  ├─ aero-toggle-spec.md                气动开关的技术规格与补丁锚点
+│  ├─ timeline-schema.md                 时间轴 JSON schema 与接管语义
+│  ├─ runbook.md                         现场操作单 + 应急
+│  ├─ presenter-script.md                展示人问话本（对平台说什么 + 对观众说什么）
+│  └─ quiz-bank.md                       第 2 幕引导问题 + 第 3 幕题组（含答案与讲解）
+├─ assets/
+│  ├─ aero-toggle/src/fdm/noaero.browser.js   无气动假 FDM 适配器（源文件）
+│  ├─ timeline.default.json                   四幕默认时间轴
+│  └─ requirements.spec.template.md           需求规格模板
+└─ scripts/
+   ├─ apply_aero_toggle.mjs              安装/检查/回滚气动开关（幂等）
+   ├─ verify_noaero.mjs                  四场景症状回归测试（接真实 FCS 跑闭环）
+   ├─ demo_driver.mjs                    Playwright 时间轴驱动（可接管）
+   └─ check_package.mjs                  本 Skill 包自检
+```

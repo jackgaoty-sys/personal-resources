@@ -1,0 +1,4 @@
+interface:
+  display_name: "飞控系统四幕演示"
+  short_description: "按剧本编排飞控系统四幕教学演示：气动开关、时间轴回放、展示人问话本"
+  default_prompt: "Use $fcs-demo-4act-flow to orchestrate the four-act flight-control teaching demo against an existing fcs-demo checkout."

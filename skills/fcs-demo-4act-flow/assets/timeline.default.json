@@ -1,0 +1,218 @@
+{
+  "version": 1,
+  "meta": {
+    "name": "飞控系统四幕演示",
+    "baseUrl": "http://localhost:5173",
+    "outDir": "./demo-artifacts",
+    "note": "baseUrl 是 vite dev 的根路径（dev 下 base 为 /）。若 dev server 换了端口，改这里。"
+  },
+  "defaults": {
+    "stepTimeoutMs": 20000,
+    "settleMs": 800,
+    "shotQuality": 80
+  },
+  "acts": [
+    {
+      "id": "act1",
+      "title": "第 1 幕 · 进入卓工平台 Ai Lab",
+      "pauseBefore": false,
+      "narration": "平台左侧导航 → AI Lab → 跳转网页版 Codar。控制在 15 秒内，只说一句：它进的是我们自己的平台，Agent 嵌在里面。台词见 presenter-script.md §1。",
+      "steps": [
+        { "action": "note", "text": "本幕发生在卓工平台侧，不属于 fcs-demo 的控制范围。" },
+        { "action": "note", "text": "此处应截取平台入口画面，人工另存为 act1-entry.png（脚本无法访问平台页面）。" }
+      ]
+    },
+
+    {
+      "id": "act2",
+      "title": "第 2 幕 · 需求分析（引导式）",
+      "pauseBefore": true,
+      "narration": "展示人（扮学生）对平台说'我想做一个飞控系统'；平台按 quiz-bank.md 的 A 组逐个提问，一次一个。收在'只保留三条，你保留哪三条'。产出 requirements.spec.md。现成答话见 presenter-script.md §2.2。",
+      "steps": [
+        { "action": "note", "text": "本幕以对话为主，不进浏览器。题目见 references/quiz-bank.md 的 A 组。" },
+        { "action": "eval", "expr": "document.querySelector('#preset') ? 'ui-ready' : 'ui-missing'", "save": "uiProbe" },
+        { "action": "shot", "name": "act2-ui-ready", "note": "记录'平台界面可用'的状态，供需求讨论时指着说" },
+        { "action": "note", "text": "把 A 组结论写进 demo-artifacts/requirements.spec.md（模板：assets/requirements.spec.template.md）。" }
+      ]
+    },
+
+    {
+      "id": "act3",
+      "title": "第 3 幕 · 阶段性成果与改进",
+      "pauseBefore": true,
+      "narration": "3.1 亮出无气动阶段版 → 3.2 展示人指出 bug → 3.3 引导（选择题/填空题）→ 3.4 接入气动数据实时生效 → 3.5 对照收口。本幕是全场重点。台词见 presenter-script.md §3。",
+      "steps": [
+        {
+          "action": "load",
+          "aero": 0,
+          "note": "3.1 加载阶段版：有前端、无气动"
+        },
+        {
+          "action": "eval",
+          "expr": "window.__AERO__ === false",
+          "save": "aeroOff",
+          "expect": [
+            { "expr": "window.__AERO__ === false", "desc": "气动开关应处于关闭（阶段版）" },
+            { "expr": "window.app.log.items.some(function(e){return /简化动力学/.test(e.text)})", "desc": "启动日志应如实写明'简化动力学（无气动数据）'" }
+          ]
+        },
+        { "action": "speed", "x": 1, "note": "阶段版用 1x，避免症状被倍速冲掉" },
+        { "action": "waitSim", "seconds": 3, "note": "先让观众看清界面是完整的" },
+        {
+          "action": "shot",
+          "name": "act3-aero-off-ui-intact",
+          "note": "B8 的视觉证据：PFD/ECAM/3D/日志/时间历程全部正常渲染"
+        },
+        { "action": "note", "text": "把 PFD、ECAM、3D 视景、事件日志、时间历程逐块指一遍，先说'界面是完整的'。" },
+        { "action": "waitSim", "seconds": 10, "note": "松手不动，让飞机自己暴露问题" },
+        {
+          "action": "shot",
+          "name": "act3-aero-off-symptom",
+          "note": "症状：姿态乱飘 + 高度一路下降"
+        },
+        {
+          "action": "expect",
+          "note": "症状断言：升降率为负（高度在掉）",
+          "expect": [
+            { "expr": "typeof app.vs === 'number' && app.vs < -1", "desc": "无气动下应持续下降（app.vs 单位 m/s）" }
+          ]
+        },
+        {
+          "action": "csv",
+          "name": "act3-aero-off",
+          "note": "3.5 对照用的第一份证据"
+        },
+        {
+          "action": "pause",
+          "note": "★ 3.2 + 3.3 交给展示人：按 B 组问症状，按 C 组抛选择题。学生即展示人，'答错→被纠正'不会自己发生——要么把选择权交给观众，要么自己先答 D 再改 B。见 presenter-script.md §3.3。"
+        },
+        {
+          "action": "note",
+          "text": "3.3 正确答案：B（气动力矩计算 + 6-DoF 运动方程）。三种演法见 presenter-script.md §3.3；若选 D，追问'保护要作用在什么对象上'。"
+        },
+        {
+          "action": "load",
+          "aero": 1,
+          "note": "3.4 接入气动数据与 6-DoF 内核"
+        },
+        {
+          "action": "eval",
+          "expr": "window.__AERO__ === true",
+          "expect": [
+            { "expr": "window.__AERO__ === true", "desc": "气动开关应处于开启" },
+            { "expr": "window.app.log.items.some(function(e){return /JSBSim 内核装载完成/.test(e.text)})", "desc": "启动日志应恢复为'JSBSim 内核装载完成'" }
+          ]
+        },
+        { "action": "waitSim", "seconds": 3, "note": "切换后沉默几秒，让'能飞了'自己说话" },
+        {
+          "action": "shot",
+          "name": "act3-aero-on",
+          "note": "同一初始条件、同一操纵，高度稳住"
+        },
+        { "action": "waitSim", "seconds": 10, "note": "同样松手 10 秒，与 3.1 的 10 秒严格对照" },
+        {
+          "action": "expect",
+          "note": "收口断言：高度基本稳住（与 aero=0 的持续下降形成对照）",
+          "expect": [
+            { "expr": "typeof app.vs === 'number' && Math.abs(app.vs) < 6", "desc": "气动开启后升降率应基本收敛（|vs| < 6 m/s）" }
+          ]
+        },
+        {
+          "action": "csv",
+          "name": "act3-aero-on",
+          "note": "3.5 对照用的第二份证据。与 act3-aero-off.csv 并排看'升降率'列。"
+        }
+      ]
+    },
+
+    {
+      "id": "act4",
+      "title": "第 4 幕 · 成果产出与试飞展示",
+      "pauseBefore": true,
+      "narration": "正常法则 → 包线保护 → 故障降级 → 参照机同框对比 → 导出 CSV。时间不够就砍后三条。",
+      "steps": [
+        {
+          "action": "load",
+          "aero": 1,
+          "note": "开场回到干净的正常法则"
+        },
+        { "action": "camera", "mode": "chase" },
+        {
+          "action": "keys",
+          "hold": ["KeyS"],
+          "ms": 1500,
+          "note": "① 拉杆抬头"
+        },
+        { "action": "keys", "hold": ["KeyW"], "ms": 1500, "note": "回杆" },
+        { "action": "waitSim", "seconds": 2 },
+
+        {
+          "action": "keys",
+          "hold": ["KeyS"],
+          "ms": 4000,
+          "note": "② 满杆持续拉，触发包线保护"
+        },
+        { "action": "shot", "name": "act4-protection-active" },
+        {
+          "action": "eval",
+          "expr": "Array.from(app.fcs.protTags)",
+          "save": "protTags",
+          "expect": [
+            { "expr": "app.fcs.protTags.size > 0", "desc": "满杆拉到底应触发保护（LOAD / ALPHA PROT）" }
+          ]
+        },
+        { "action": "press", "code": "KeyR", "note": "重置回平飞" },
+        { "action": "waitSim", "seconds": 2 },
+
+        {
+          "action": "preset",
+          "id": "alpha",
+          "note": "③ α 传感器失效 → ALTN LAW"
+        },
+        { "action": "waitSim", "seconds": 3 },
+        { "action": "shot", "name": "act4-degraded-altn" },
+        {
+          "action": "expect",
+          "expect": [
+            { "expr": "app.fcs.law === 'ALTERNATE'", "desc": "α 传感器失效应降到 ALTERNATE" }
+          ]
+        },
+
+        {
+          "action": "preset",
+          "id": "ahrs",
+          "note": "④ AHRS 失效 → DIRECT LAW，保护丢失"
+        },
+        { "action": "waitSim", "seconds": 3 },
+        { "action": "shot", "name": "act4-degraded-direct" },
+        {
+          "action": "expect",
+          "expect": [
+            { "expr": "app.fcs.law === 'DIRECT'", "desc": "AHRS 失效应降到 DIRECT" }
+          ]
+        },
+
+        { "action": "preset", "id": "normal", "note": "⑤ 回到基线，打开参照机做同框对比" },
+        { "action": "waitSim", "seconds": 1 },
+        { "action": "press", "code": "KeyV", "note": "参照机（同杆位同油门，去掉增稳与保护）" },
+        { "action": "waitSim", "seconds": 1 },
+        { "action": "camera", "mode": "chase" },
+        { "action": "shot", "name": "act4-ghost-compare" },
+        {
+          "action": "eval",
+          "expr": "app.scene ? app.scene.getGhostVisible() : null",
+          "save": "ghostVisible",
+          "expect": [
+            { "expr": "app.scene && app.scene.getGhostVisible() === true", "desc": "参照机应可见" }
+          ]
+        },
+        {
+          "action": "note",
+          "text": "⑥ 收尾话术：同一架飞机、同一套操纵、同一个油门，差别只在有没有飞控。"
+        },
+        { "action": "csv", "name": "act4-flight", "note": "试飞轨迹归档" },
+        { "action": "shot", "name": "act4-final" }
+      ]
+    }
+  ]
+}
