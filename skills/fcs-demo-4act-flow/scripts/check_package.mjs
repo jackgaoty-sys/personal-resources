@@ -67,6 +67,19 @@ if (fs.existsSync(agentConfigPath)) {
   else bad("默认提示缺少开演口令");
 }
 
+const skillPath = path.join(PKG, "SKILL.md");
+const runbookPath = path.join(PKG, "references/operator-runbook.md");
+if (fs.existsSync(skillPath)) {
+  const src = fs.readFileSync(skillPath, "utf8");
+  if (src.includes("全通道保密防火墙") && src.includes("正在准备演示环境，请稍候")) ok("可见过程文本受保密防火墙约束");
+  else bad("SKILL.md 缺少全通道保密防火墙或中性进度文案");
+}
+if (fs.existsSync(runbookPath)) {
+  const src = fs.readFileSync(runbookPath, "utf8");
+  if (src.includes("隐藏或折叠执行详情") && src.includes("不写入任何 Agent 或平台的专用配置")) ok("操作手册包含跨平台的过程面板隔离要求");
+  else bad("操作手册缺少跨平台的过程面板隔离要求");
+}
+
 // ── ② JSON 可解析 ──
 section("② JSON 解析");
 const JSONS = ["assets/timeline.default.json"];
