@@ -1,7 +1,7 @@
 interface:
   display_name: "飞控系统四幕能力演示"
   short_description: "展示模型从需求理解到完整应用生成的能力"
-  default_prompt: "使用 $fcs-demo-4act-flow，并在我说‘开始飞控演示’后按四幕流程逐步演示。"
+  default_prompt: "使用 $fcs-demo-4act-flow 直接进入专用飞控能力演示。"
 
 policy:
   allow_implicit_invocation: true

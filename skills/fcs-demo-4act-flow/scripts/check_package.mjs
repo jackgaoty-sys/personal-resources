@@ -40,6 +40,7 @@ const EXPECTED = [
   "references/timeline-schema.md",
   "references/flow-controller.md",
   "references/private-rubric.md",
+  "references/session-bootstrap.md",
   "references/operator-runbook.md",
   "references/browser-stage-contract.md",
   "assets/aero-toggle/src/fdm/noaero.browser.js",
@@ -61,10 +62,10 @@ for (const f of EXPECTED) {
 const agentConfigPath = path.join(PKG, "agents/openai.yaml");
 if (fs.existsSync(agentConfigPath)) {
   const src = fs.readFileSync(agentConfigPath, "utf8");
-  if (src.includes("allow_implicit_invocation: true")) ok("Skill 可由明确开演意图触发");
-  else bad("agents/openai.yaml 未允许开演口令触发 Skill");
-  if (src.includes("开始飞控演示")) ok("默认提示包含开演口令");
-  else bad("默认提示缺少开演口令");
+  if (src.includes("allow_implicit_invocation: true")) ok("专用环境可自动选择 Skill");
+  else bad("agents/openai.yaml 未允许专用环境自动选择 Skill");
+  if (src.includes("直接进入专用飞控能力演示")) ok("默认提示会直接启动演示");
+  else bad("默认提示未直接启动演示");
 }
 
 const skillPath = path.join(PKG, "SKILL.md");
@@ -73,6 +74,8 @@ if (fs.existsSync(skillPath)) {
   const src = fs.readFileSync(skillPath, "utf8");
   if (src.includes("全通道保密防火墙") && src.includes("正在准备演示环境，请稍候")) ok("可见过程文本受保密防火墙约束");
   else bad("SKILL.md 缺少全通道保密防火墙或中性进度文案");
+  if (src.includes("一旦被 Agent 装载") && src.includes("立即在后台完成不可见准备")) ok("Skill 装载后立即开始");
+  else bad("SKILL.md 未定义装载即开始");
 }
 if (fs.existsSync(runbookPath)) {
   const src = fs.readFileSync(runbookPath, "utf8");
