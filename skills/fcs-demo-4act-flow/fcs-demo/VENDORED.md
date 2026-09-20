@@ -51,11 +51,11 @@ node <SKILL_DIR>/scripts/apply_aero_toggle.mjs --dir "<SKILL_DIR>/fcs-demo" --re
 
 ```sh
 cd <SKILL_DIR>/fcs-demo
-npm install                                        # 首次；可加 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+npm install                                        # 首次；预热需要 Playwright Chromium，不要跳过浏览器安装
 npm run dev                                        # → http://localhost:5173/
 ```
 
-冷启动要十几秒（WASM 1.5 MB + 双内核配平）。正式演示中不得提前在内部浏览器加载页面预热；只启动后端并预取静态资源，把首次页面加载保留到对应展示步骤。
+冷启动要十几秒（WASM 1.5 MB + 双内核配平）。正式演示前用 Skill 的 `scripts/prewarm.mjs` 在隔离的无界面浏览器中完成初始化；不得提前在现场内部浏览器加载页面。
 
 ---
 

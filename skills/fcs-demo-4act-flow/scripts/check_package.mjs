@@ -47,6 +47,7 @@ const EXPECTED = [
   "assets/requirements.spec.template.md",
   "scripts/apply_aero_toggle.mjs",
   "scripts/demo_driver.mjs",
+  "scripts/prewarm.mjs",
   "scripts/verify_noaero.mjs",
   "scripts/check_package.mjs",
 ];
@@ -68,7 +69,7 @@ for (const f of JSONS) {
 
 // ── ③ 脚本语法 ──
 section("③ 脚本语法（node --check，不执行）");
-const SCRIPTS = ["scripts/apply_aero_toggle.mjs", "scripts/demo_driver.mjs", "scripts/verify_noaero.mjs",
+const SCRIPTS = ["scripts/apply_aero_toggle.mjs", "scripts/demo_driver.mjs", "scripts/prewarm.mjs", "scripts/verify_noaero.mjs",
                  "scripts/check_package.mjs",
                  "assets/aero-toggle/src/fdm/noaero.browser.js"];
 for (const f of SCRIPTS) {
@@ -80,6 +81,17 @@ for (const f of SCRIPTS) {
   } catch (e) {
     bad(f + " 语法错误：\n" + String(e.stderr || e.message).split("\n").slice(0, 6).join("\n"));
   }
+}
+
+const prewarmPath = path.join(PKG, "scripts/prewarm.mjs");
+if (fs.existsSync(prewarmPath)) {
+  const src = fs.readFileSync(prewarmPath, "utf8");
+  if (src.includes("headless: true")) ok("预热使用独立无界面浏览器");
+  else bad("预热未强制 headless: true");
+  if (!src.includes(".screenshot(") && !src.includes("acceptDownloads: true")) ok("预热不截图、不允许下载");
+  else bad("预热包含截图或允许下载");
+  if (src.includes("await browser.close()")) ok("预热结束会关闭浏览器");
+  else bad("预热没有关闭浏览器");
 }
 
 // ── ④ 时间轴动作合法性 ──
