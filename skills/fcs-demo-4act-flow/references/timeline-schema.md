@@ -74,7 +74,7 @@
 | `camera` | `{ mode: "cockpit" }` | 循环 `C` 直到 `scene.getMode()` 命中 |
 | `pause` / `resume` | `{}` | 置 `app.paused` |
 | `ghost` | `{ visible: true }` | `V` 或直接调 `scene.setGhostVisible` |
-| `shot` | `{ name, fullPage?: false }` | 截图 → `<outDir>/<name>.png` |
+| `shot` | `{ name, fullPage?: false }` | 截图 → `<outDir>/<name>.png`（**可选**：截图非必需，见 `delivery-mode.md` §2.9） |
 | `csv` | `{ name }` | 触发界面导出 CSV，用下载事件接住并另存为 `<outDir>/<name>.csv` |
 | `note` | `{ text }` | 只写 `run.log`（不碰浏览器） |
 | `expect` | `{ expect: [...] }` | **纯断言步**：不动浏览器，只跑 `expect[]`。用于把"这一幕成立"钉在时间轴上 |
@@ -118,7 +118,7 @@
 | 按键（`W/S`、`R`、`V`、`Space`…） | `in_app_browser_interact`（`press`）或 `in_app_browser_evaluate` 派发 `keydown`/`keyup` |
 | 点按钮（顶栏“气动”、`导出 CSV`、场景预设） | `in_app_browser_interact`（`click` / `select`） |
 | 读状态、求值断言 | `in_app_browser_evaluate` |
-| 截图 | `in_app_browser_screenshot` |
+| 截图（可选，非必需） | `in_app_browser_screenshot` |
 
 观众随时能上手，因为操作的就是**观众正看着的那个浏览器窗口**。
 
@@ -149,10 +149,10 @@ window.app && window.app.st && window.app.simT > 0
 
 | 幕 id | 剧本小节 | 关键动作 |
 |---|---|---|
-| `act1` | 1. 学生进入卓工平台 Ai Lab | 入口截图（本 Skill 只做记录，不模拟平台本身） |
-| `act2` | 2. 需求分析 | `note` + 产出 `requirements.spec.md`（由人撰写，脚本只截图/记时） |
-| `act3` | 3. 阶段性成果与改进 | `load{aero:0}` → 症状截图 → `pause`（讲题）→ `load{aero:1}` → 对照截图/CSV |
+| `act1` | 1. 学生进入卓工平台 Ai Lab | 入口画面当场可见（截图非必需；本 Skill 只做记录，不模拟平台本身） |
+| `act2` | 2. 需求分析 | `note` + 产出 `requirements.spec.md`（由人撰写） |
+| `act3` | 3. 阶段性成果与改进 | `load{aero:0}` → 症状当场可见 → `pause`（讲题）→ `load{aero:1}` → 对照（可选 CSV） |
 | `act4` | 4. 成果产出 | 试飞：正常法则 → 保护 → 故障降级 → 参照机 → CSV |
 
 **第 3 幕的 `pause` 是刻意的**：题目与学生的回答发生在浏览器之外，
-脚本必须停下来把舞台交给展示人，否则会自动跳过整段教学。
+平台必须停下来把舞台交给展示人，否则会自动跳过整段教学。

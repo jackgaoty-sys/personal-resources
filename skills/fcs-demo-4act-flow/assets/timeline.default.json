@@ -4,6 +4,7 @@
     "name": "飞控系统四幕演示",
     "baseUrl": "http://localhost:5173",
     "outDir": "./demo-artifacts",
+    "shotPolicy": "截图非必需：shot 步骤默认跳过，需要留档时才做（见 delivery-mode.md §2.9）",
     "note": "baseUrl 是 vite dev 的根路径（dev 下 base 为 /）。若 dev server 换了端口，改这里。"
   },
   "defaults": {
