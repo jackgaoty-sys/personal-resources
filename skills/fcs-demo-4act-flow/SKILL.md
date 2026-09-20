@@ -13,16 +13,35 @@ description: 按《剧本》编排并执行"北航卓工平台 AI Lab · 飞控�
 
 ---
 
+## ⚠ 执行方式（硬要求）：必须“看得见地”演一遍
+
+> **本 Skill 的交付物是“当场演一遍”，不是“脚本跑通了”。**
+> 用后台 / `--headless` 跑驱动脚本**不构成演示** —— 那只是冒烟测试，观众什么都没看到。
+> 完整协议见 `references/delivery-mode.md`，**开工前必读**。
+
+| 要求 | 不满足就是没演 |
+|---|---|
+| **在看得见的浏览器里演** | 全程用 Codar **内置浏览器**（`in_app_browser_*`）操作真实应用，画面当场可见 |
+| **逐幕推进、逐幕留证** | 按第 1→4 幕顺序走，**每一幕都当场截图**，不是最后才丢一堆文件 |
+| **真交互** | 第 4 幕的保护、故障注入、降级、参照机、导出都用**真实 UI 操作**（点按钮、派发键盘事件），不得直接改内部状态糊弄 |
+| **不静默** | 禁止“后台跑完再汇报产出物” |
+| **把戏交给真人** | 第 2 幕的学生作答、第 3 幕 3.3 的选择，必须**停下等真人**，平台不得自问自答 |
+
+**唯一允许用 `--headless` 的场合**：演示**前**的冒烟自检 —— 它的输出不得当作演示交付。
+
+---
+
 ## 0. 读这份文档的顺序
 
 1. 先读本文件，拿到四幕骨架和执行命令。
-2. **要真正跑一遍四幕**（第 2/3 幕的引导、判定、纠偏）读 `references/platform-guidance.md`。
-3. **展示人怎么对观众讲**读 `references/presenter-script.md`（只写【对观众】解说与操作；**不提供学生台词**）。
-4. 平台侧的题目与判定落点读 `references/quiz-bank.md`（**不得展示给学生**）。
-5. 需要改代码时读 `references/aero-toggle-spec.md`。
-6. 需要写驱动脚本或调时间轴时读 `references/timeline-schema.md`。
-7. 现场执行前读 `references/runbook.md`（操作单 + 应急）。
-8. 对 fcs-demo 内部接口不确定时读 `references/fcs-demo-contract.md`。
+2. **开工前必读** `references/delivery-mode.md` —— 执行方式的硬要求：必须“看得见地”演一遍，禁止后台跑完就汇报。
+3. **要真正跑一遍四幕**（第 2/3 幕的引导、判定、纠偏）读 `references/platform-guidance.md`。
+4. **展示人怎么对观众讲**读 `references/presenter-script.md`（只写【对观众】解说与操作；**不提供学生台词**）。
+5. 平台侧的题目与判定落点读 `references/quiz-bank.md`（**不得展示给学生**）。
+6. 需要改代码时读 `references/aero-toggle-spec.md`。
+7. 需要写驱动脚本或调时间轴时读 `references/timeline-schema.md`。
+8. 现场执行前读 `references/runbook.md`（操作单 + 应急）。
+9. 对 fcs-demo 内部接口不确定时读 `references/fcs-demo-contract.md`。
 
 ---
 
@@ -211,6 +230,10 @@ node scripts/demo_driver.mjs --dir "$FCS_DEMO" --timeline assets/timeline.defaul
 
 手工执行也完全合法——时间轴只是把"该按什么"固化下来，避免现场记错。
 
+> ⚠ **`demo_driver.mjs` 是提词单，不是替身。**
+> 用 `--headless` 在后台跑完再汇报产出物，**不构成演示**（见 `references/delivery-mode.md`）。
+> 要"演"，就在**看得见的内置浏览器**里逐幕走；驱动脚本最多用来做演示**前**的冒烟自检。
+
 ---
 
 ## 5. 产出物
@@ -231,7 +254,9 @@ demo-artifacts/
 
 ## 6. 红线
 
-- **不要**给展示人／学生任何"照念"台词。学生是**真人**，自由作答；平台只引导、不代答。
+- **不要**“后台跑完就汇报”。四幕必须在**看得见的浏览器里**逐幕真演，每一步都当场截图；
+  后台 / `--headless` 只允许用于演示前的冒烟自检。详见 `references/delivery-mode.md`。
+- **不要**给展示人／学生任何“照念”台词。学生是**真人**，自由作答；平台只引导、不代答。
   一旦照念，"从零长出来"的观感立刻崩塌，"答错 → 被纠正"这条戏也没了。
 - **不要**把 `references/quiz-bank.md` 的答案展示或朗读给学生。
 - **不要**为了让"乱飞"更好看而让阶段版随机崩溃/闪退：乱飞要是**可解释的物理缺失**，
