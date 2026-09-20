@@ -86,20 +86,34 @@ function validate(tl) {
 // ── 接管 ──
 let SKIP_PAUSES = NO_PAUSE;
 const rl = DRY ? null : readline.createInterface({ input: process.stdin, output: process.stdout });
+// stdin 是管道/重定向且已 EOF 时，readline 会自行 close，之后 rl.question 会抛
+// ERR_USE_AFTER_CLOSE。用这个标志把“无法接管”降级为“自动继续”，而不是整场崩掉。
+let rlClosed = false;
+if (rl) rl.on("close", () => { rlClosed = true; });
 let pendingNextAct = false;
 
 function takeover(promptText) {
-  if (!rl || SKIP_PAUSES) return Promise.resolve("continue");
+  if (!rl || rlClosed || SKIP_PAUSES) return Promise.resolve("continue");
   return new Promise((resolve) => {
-    rl.question(`\n⏸  ${promptText}\n   [Enter=继续 / p=暂停 / next=下一幕 / skip=跳过全部暂停 / q=退出] > `, (ans) => {
+    const onAnswer = (ans) => {
       const a = (ans || "").trim().toLowerCase();
       if (a === "q") { say("展示人请求退出。"); rl.close(); resolve("quit"); }
       else if (a === "skip") { SKIP_PAUSES = true; say("已跳过剩余全部暂停点。"); resolve("continue"); }
       else if (a === "next") { say("跳到下一幕。"); resolve("next"); }
       else if (a === "p") {
-        rl.question("   已暂停。再按 Enter 继续 > ", () => resolve("continue"));
+        try { rl.question("   已暂停。再按 Enter 继续 > ", () => resolve("continue")); }
+        catch { rlClosed = true; resolve("continue"); }
       } else resolve("continue");
-    });
+    };
+    try {
+      rl.question(`\n⏸  ${promptText}\n   [Enter=继续 / p=暂停 / next=下一幕 / skip=跳过全部暂停 / q=退出] > `, onAnswer);
+    } catch {
+      // 例：printf '\n' | node demo_driver.mjs … —— stdin 已 EOF，接管不可用。
+      // 降级为自动继续；要无人值守请直接加 --no-pause。
+      rlClosed = true;
+      say("（stdin 已关闭，无法接管 —— 自动继续；无人值守请用 --no-pause）");
+      resolve("continue");
+    }
   });
 }
 
@@ -312,7 +326,10 @@ async function main() {
   try {
     const req = createRequire(path.join(ROOT, "package.json"));
     const pwPath = req.resolve("playwright");
-    ({ chromium } = await import(pwPath));
+    // Node 24 + playwright(CJS) 互操作：具名导出取不到，需从 default 上取
+    const _pw = await import(pwPath);
+    chromium = _pw.chromium ?? _pw.default?.chromium;
+    if (!chromium) throw new Error("无法从 playwright 取到 chromium");
     say(`playwright：${pwPath}`);
   } catch (e) {
     console.error("\n未能在 fcs-demo 里找到 playwright。请先在 fcs-demo 里安装：");

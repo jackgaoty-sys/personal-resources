@@ -38,6 +38,7 @@ const EXPECTED = [
   "references/aero-toggle-spec.md",
   "references/timeline-schema.md",
   "references/runbook.md",
+  "references/platform-guidance.md",
   "references/presenter-script.md",
   "references/quiz-bank.md",
   "assets/aero-toggle/src/fdm/noaero.browser.js",
