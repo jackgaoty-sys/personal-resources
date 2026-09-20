@@ -5,21 +5,17 @@
 // 因此它随时可以被人工接管 —— 展示人在浏览器里手操不会被脚本回滚。
 //
 // 用法：
-//   node demo_driver.mjs --dir <fcs-demo> [--timeline <json>] [--out <dir>]
-//                        [--url http://localhost:5173] [--headless] [--dry]
+//   node demo_driver.mjs --dir <fcs-demo> --dry      # 只校验时间轴结构，不启浏览器
 //
-// 本驱动【没有无人值守模式】。历史上的 --no-pause 已被移除：它会让“教学”被静默跳过，
-// 观众什么都没看到，却产出一堆文件 —— 那就是假演示。只想校验时间轴请用 --dry。
+// ⚠ 本脚本【不再执行演示】。演示的全部动作必须在 Codar **内置浏览器**里触发
+//   （in_app_browser_navigate / interact / evaluate / screenshot）—— 观众看的是 Codar 里的
+//   画面；这里起的独立窗口 Chromium 观众看不到，不算演示。见 references/delivery-mode.md §2.7。
+//   非 --dry 的调用会直接报错退出。
 //
-// 接管热键（在运行本脚本的终端里输入后回车）：
-//   Enter  继续        p     就地暂停        skip  跳过剩余全部暂停点
-//   next   跳到下一幕   q     立即退出（已产出文件保留）
+// 它现在的两个用途：
+//   ① --dry 校验时间轴结构；② 当【提词单】读 —— 每一幕该按什么、该看什么、该断言什么。
 //
-// 设计取舍：
-//   · 断言失败【只记不抛】—— 现场演示不能因为一条断言挂掉整场。
-//   · 每步之后有 settleMs 静默期，让画面"被看见"（演示不是跑测试）。
-//   · 幕边界默认暂停，把舞台交回展示人（第 3 幕的题目讲解必须在浏览器之外发生）。
-//   · 暂停点【不可绕过】：接管不可用（stdin 关闭 / 非交互）时直接报错退出，绝不替你继续。
+// （历史上的浏览器执行路径与 --no-pause 均已停用；下面的执行代码保留仅作参考。）
 
 import fs from "node:fs";
 import path from "node:path";
@@ -42,6 +38,16 @@ const DRY = has("--dry");
 if (has("--no-pause")) {
   console.error("✗ --no-pause 已被移除：本驱动只支持实机演示，暂停点必须由真人推进。");
   console.error("  演示前只想校验时间轴，请用 --dry。见 references/delivery-mode.md。");
+  process.exit(2);
+}
+
+// 本脚本【不再执行演示】。演示的全部动作必须在 Codar 内置浏览器里触发：
+// 这里起的是独立窗口的 Chromium，观众看不到它，不算演示（delivery-mode.md §2.7）。
+if (!DRY) {
+  console.error("✗ 本脚本不再执行演示。");
+  console.error("  演示的全部动作必须在 Codar 内置浏览器里触发（in_app_browser_*）——");
+  console.error("  独立窗口的 Chromium 观众看不到，不算演示。");
+  console.error("  这里只保留 --dry：校验时间轴结构，不启浏览器。");
   process.exit(2);
 }
 

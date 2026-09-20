@@ -23,6 +23,7 @@ description: 按《剧本》编排并执行"北航卓工平台 AI Lab · 飞控�
 |---|---|
 | **触发闸门** | **只有学生说出与“飞控系统”相关的需求后**，才能进第 2 幕引导与后续各幕；后端可提前准备，但**展示推进必须由学生触发** |
 | **在看得见的浏览器里演** | 全程用 Codar **内置浏览器**（`in_app_browser_*`）操作真实应用，画面当场可见 |
+| **内置浏览器独占** | 演示的**全部动作**都通过 Codar 内置浏览器（`in_app_browser_*`）触发；**不得**用独立窗口的 Playwright（`demo_driver.mjs`）来演 —— 观众看的是 Codar 里的画面，独立窗口不算 |
 | **逐幕推进、逐幕留证** | 按第 1→4 幕顺序走，**每一幕都当场截图**，不是最后才丢一堆文件 |
 | **真交互** | 第 4 幕的保护、故障注入、降级、参照机、导出都用**真实 UI 操作**（点按钮、派发键盘事件），不得直接改内部状态糊弄 |
 | **不静默** | 禁止“后台跑完再汇报产出物” |
@@ -41,7 +42,7 @@ description: 按《剧本》编排并执行"北航卓工平台 AI Lab · 飞控�
 4. **展示人怎么对观众讲**读 `references/presenter-script.md`（只写【对观众】解说与操作；**不提供学生台词**）。
 5. 平台侧的题目与判定落点读 `references/quiz-bank.md`（**不得展示给学生**）。
 6. 需要改代码时读 `references/aero-toggle-spec.md`。
-7. 需要写驱动脚本或调时间轴时读 `references/timeline-schema.md`。
+7. 需要调时间轴或把它当检查表用时读 `references/timeline-schema.md`。
 8. 现场执行前读 `references/runbook.md`（操作单 + 应急）。
 9. 对 fcs-demo 内部接口不确定时读 `references/fcs-demo-contract.md`。
 
@@ -199,7 +200,7 @@ node scripts/verify_noaero.mjs --dir "$FCS_DEMO"
 
 ### 第 4 幕 · 成品试飞
 
-- **操作**：保持 `?aero=1`，展示人手操或让驱动脚本按时间轴跑一段：
+- **操作**：保持 `?aero=1`，展示人在**内置浏览器**里手操（按时间轴逐条走）：
   - `W/S` 俯仰 · `A/D` 滚转 · `Q/E` 偏航 · `T/G` 油门 · `空格` 暂停 · `C` 视角 · `V` 参照机 · `R` 重置
   - 底部控制条：`开局法则`（NORMAL/ALTERNATE/DIRECT）、`飞行中改法`、`故障注入`、`场景预设`
 - **功能展示清单**（按时间富余程度取舍）：
@@ -216,33 +217,24 @@ node scripts/verify_noaero.mjs --dir "$FCS_DEMO"
 
 ---
 
-## 4. 时间轴驱动（脚本化 + 可手动接管）
+## 4. 时间轴（提词单，不是执行器）
 
-四幕可以手工执行，也可以用 `assets/timeline.default.json` 驱动：
+四幕在**内置浏览器**里逐幕手工执行（见 §3 与 `references/delivery-mode.md` §2.7）。
+`assets/timeline.default.json` 是**提词单**：它把“这一幕该按什么、该看什么、该断言什么”固化下来，
+避免现场记错。
 
 ```sh
-# 先起 dev server
-cd "$FCS_DEMO" && npm run dev &
-# 再跑时间轴（接管热键见下）
-node scripts/demo_driver.mjs --dir "$FCS_DEMO" --timeline assets/timeline.default.json \
-  --out ./demo-artifacts
+# 演示前：只校验时间轴结构（不启浏览器）
+node scripts/demo_driver.mjs --dir "$FCS_DEMO" --dry
 ```
 
-- `--dry` 只校验时间轴，不启浏览器。
-- 默认在**每个"幕"的边界暂停并等回车**，这正是"可手动接管"：
-  按回车继续，输入 `p` 暂停当前节拍直至再回车，输入 `next` 跳到下一幕，
-  输入 `skip` 跳过剩余全部暂停点，输入 `q` 退出。
-- **本驱动没有无人值守模式**：`--no-pause` 已移除。幕边界与教学暂停点**必须由真人推进**；
-  接管接不上（stdin 关闭 / 非交互终端）时驱动会**报错退出**，不会替你继续。
-  演示前只想校验时间轴，用 `--dry`。
-- 每步可带断言 `expect`，不满足时**高亮报错但不中断**（现场演示不能因为断言挂掉）。
+- **`demo_driver.mjs` 不用于演示执行** —— 它起的是**独立窗口**的 Chromium，观众看不到它；
+  非 `--dry` 的调用会**直接报错退出**。
+- 演示时按时间轴的步骤，在**内置浏览器**里逐条做：导航用 `in_app_browser_navigate`，
+  按键/点击用 `in_app_browser_interact`，断言用 `in_app_browser_evaluate`，截图用 `in_app_browser_screenshot`。
+- 时间轴里的 `expect` **不是自动跑的**：演示时逐条当场求值，把结果念进【对观众】的解说。
+- 断言不满足时**当场指出但不中断**（现场演示不能因为一条断言挂掉）。
 - 详见 `references/timeline-schema.md`。
-
-手工执行也完全合法——时间轴只是把"该按什么"固化下来，避免现场记错。
-
-> ⚠ **`demo_driver.mjs` 是提词单，不是替身。**
-> 用 `--headless` 在后台跑完再汇报产出物，**不构成演示**（见 `references/delivery-mode.md`）。
-> 要"演"，就在**看得见的内置浏览器**里逐幕走；驱动脚本最多用来做演示**前**的冒烟自检。
 
 ---
 
@@ -271,6 +263,10 @@ demo-artifacts/
 - **不要**剧透。一次只推进一幕，**后面几步的结果一个字都不提前出现**：不贴后续幕的截图 / CSV、
   不报症状数值、不预告下一步、不提前生成 `requirements.spec.md` 这类产出物。
   演示前准备的**动作**可以提前，但它的**输出**不得展示。详见 `references/delivery-mode.md` §2.6。
+- **不要**用独立窗口的 Playwright 演。演示的**全部动作**都要在 **Codar 内置浏览器**里触发
+  （`in_app_browser_navigate` / `interact` / `evaluate` / `screenshot`）；`demo_driver.mjs` 只剩
+  `--dry` 校验与“提词单”两个用途，非 `--dry` 调用会报错退出。
+  详见 `references/delivery-mode.md` §2.7。
 - **不要**给展示人／学生任何“照念”台词。学生是**真人**，自由作答；平台只引导、不代答。
   一旦照念，"从零长出来"的观感立刻崩塌，"答错 → 被纠正"这条戏也没了。
 - **不要**把 `references/quiz-bank.md` 的答案展示或朗读给学生。
@@ -293,7 +289,7 @@ fcs-demo-4act-flow/
 ├─ references/
 │  ├─ fcs-demo-contract.md               fcs-demo 接口契约（已核实的真实细节）
 │  ├─ aero-toggle-spec.md                气动开关的技术规格与补丁锚点
-│  ├─ timeline-schema.md                 时间轴 JSON schema 与接管语义
+│  ├─ timeline-schema.md                 时间轴 JSON schema 与检查表用法
 │  ├─ runbook.md                         现场操作单 + 应急
 │  ├─ platform-guidance.md               ★ 平台引导协议（真人学生 × 自适应平台；含禁止给台词红线）
 │  ├─ presenter-script.md                展示人对观众的解说 + 操作（不提供学生台词）
@@ -305,6 +301,6 @@ fcs-demo-4act-flow/
 └─ scripts/
    ├─ apply_aero_toggle.mjs              安装/检查/回滚气动开关（幂等）
    ├─ verify_noaero.mjs                  四场景症状回归测试（接真实 FCS 跑闭环）
-   ├─ demo_driver.mjs                    Playwright 时间轴驱动（可接管）
+   ├─ demo_driver.mjs                    时间轴校验器（--dry）／提词单；**不执行演示**
    └─ check_package.mjs                  本 Skill 包自检
 ```

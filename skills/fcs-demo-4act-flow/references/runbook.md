@@ -100,32 +100,21 @@ cd "$FCS_DEMO" && npm run dev
 
 ---
 
-## 2. 时间轴驱动（可选）
+## 2. 时间轴（提词单，不是执行器）
 
 ```sh
-cd "$FCS_DEMO" && npm run dev &                        # 先起服务
-node scripts/demo_driver.mjs \
-  --dir "$FCS_DEMO" \
-  --timeline assets/timeline.default.json \
-  --out "$FCS_DEMO/../demo-artifacts"
+# 演示前：只校验时间轴结构（不启浏览器）
+node scripts/demo_driver.mjs --dir "$FCS_DEMO" --dry
 ```
 
-接管热键（在跑驱动的终端里输入）：
+**演示不靠脚本跑。** 四幕的每一个动作都在 **Codar 内置浏览器**里触发
+（导航 / 按键 / 点击 / 导出 / 截图）；`demo_driver.mjs` 起的是**独立窗口**，观众看不到，
+非 `--dry` 调用会**直接报错退出**。见 `references/delivery-mode.md` §2.7。
 
-| 输入 | 行为 |
-|---|---|
-| `Enter` | 继续 |
-| `p` | 就地暂停，再 `Enter` 继续 |
-| `skip` | 跳过剩余暂停点，一路跑完 |
-| `next` | 跳到下一幕 |
-| `q` | 退出（已产出的文件保留） |
+时间轴怎么用：当**检查表**读 —— 这一幕该按什么、该看什么、该断言什么。
+`expect` 用 `in_app_browser_evaluate` 当场求值，把结果念进【对观众】的解说。
 
-**任何时候都可以直接在浏览器里手操**，驱动不会跟你抢状态。
-如果某一拍讲得比脚本预想的长，直接 `p` 暂停，讲完再 `Enter`。
-
-> ⚠ 本驱动**没有无人值守模式**（`--no-pause` 已移除）。暂停点必须由真人按 `Enter` 推进；
-> 接管接不上（stdin 关闭 / 非交互终端）时会**报错退出**，不会替你跑完。
-> 演示前只想校验时间轴，用 `--dry`（不启浏览器）。
+**任何时候都可以直接在浏览器里手操**，因为演示就是你亲手在内置浏览器里做的。
 
 ---
 
