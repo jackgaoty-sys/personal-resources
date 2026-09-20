@@ -30,10 +30,8 @@
       "pauseBefore": true,
       "narration": "学生自由说出需求；模型在三次以内补齐控制目标、安全边界和故障策略，随后生成并在内部浏览器展示 requirements.spec.md。",
       "steps": [
-        { "action": "load", "aero": 1, "note": "先加载应用，让'平台界面可用'可被真实截图（原时间轴缺此步，页面会停在 about:blank）" },
-        { "action": "note", "text": "对话完成后，在内部浏览器展示结构化需求规格；判定标准见 references/private-rubric.md。" },
-        { "action": "eval", "expr": "document.querySelector('#preset') ? 'ui-ready' : 'ui-missing'", "save": "uiProbe" },
-        { "action": "shot", "name": "act2-ui-ready", "note": "记录'平台界面可用'的状态，供需求讨论时指着说" },
+        { "action": "note", "text": "S0–S3 禁止打开或预热飞控应用；只进行师生对话。" },
+        { "action": "note", "text": "对话完成后，S4 仅在内部浏览器展示结构化需求规格；判定标准见 references/private-rubric.md。" },
         { "action": "note", "text": "把 A 组结论写进 demo-artifacts/requirements.spec.md（模板：assets/requirements.spec.template.md）。" }
       ]
     },

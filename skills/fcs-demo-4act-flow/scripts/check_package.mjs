@@ -106,6 +106,14 @@ try {
     }
   }
   if (!badN) ok(`${tl.acts.length} 幕 / ${n} 步，全部合法`);
+
+  // 开场可见性防火墙：第 1、2 幕只允许提词，不得提前加载、探测或截图演示页面。
+  const earlyActs = (tl.acts || []).filter((act) => act.id === "act1" || act.id === "act2");
+  const earlyVisible = earlyActs.flatMap((act) =>
+    (act.steps || []).filter((s) => s.action !== "note").map((s) => `${act.id}:${s.action}`)
+  );
+  if (earlyVisible.length) bad(`第 1、2 幕含提前展示动作：${earlyVisible.join(", ")}`);
+  else ok("开场可见性防火墙有效：第 1、2 幕没有浏览器动作");
 } catch (e) { bad("时间轴不可用：" + e.message); }
 
 // ── ⑤ 假 FDM 的 STATE_PATHS 覆盖 ──
